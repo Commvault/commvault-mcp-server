@@ -76,6 +76,20 @@ def update_workflow_configuration(workflow_id: Annotated[int, Field(description=
     else:
         return False
     
+def setup_docusign_backup_vault():
+    """
+    Use this tool to setup a vault to backup Docusign.
+    """
+    workflow_name = "Backup Docusign"
+    workflow_entity = _check_workflow_exists(workflow_name)
+    
+    if not workflow_entity:
+        workflow_name = _import_and_deploy_workflow()
+        if isinstance(workflow_name, dict) and "error" in workflow_name:
+            raise Exception(workflow_name["error"])
+        
+    return {"message": f"Docusign backup is set up successfully."}
+    
 def trigger_docusign_backup() -> dict:
     """
     Triggers a workflow to backup Docusign documents.
@@ -85,16 +99,18 @@ def trigger_docusign_backup() -> dict:
         workflow_entity = _check_workflow_exists(workflow_name)
         
         if not workflow_entity:
-            workflow_name = _import_and_deploy_workflow()
-            if isinstance(workflow_name, dict) and "error" in workflow_name:
-                raise Exception(workflow_name["error"])
+            raise Exception("Docusign backup is not configured. Please setup a vault to run backups.")
         
         return _trigger_workflow(workflow_name)
     except Exception as e:
         logger.error(f"Error triggering workflow {workflow_name}: {e}")
         return ToolError({"error": str(e)})
 
-def schedule_daily_docusign_backup():
+def schedule_docusign_backup(
+    schedule_type: Annotated[str, Field(description="Type of schedule to create. Options are 'daily' or 'weekly'. Default is 'daily'.")] = "daily",
+    time: Annotated[str, Field(description="Time to run the backup job. 24 Hour Format: HH:MM")] = "18:00",
+    day_of_week: Annotated[str, Field(description="Day of the week to run the backup job if the schedule type is 'weekly'. Default is 'Sunday'.")] = "Sunday"
+):
     """
     Schedules docusign backup workflow to run daily. Ask the user if they want to schedule it before running.
     """
@@ -103,7 +119,10 @@ def schedule_daily_docusign_backup():
 
     if schedule_type not in ("daily", "weekly"):
         return {"error": "Only 'daily' and 'weekly' schedule types are supported."}
-    
+
+    hour, minute = map(int, time.split(":"))
+    trigger_time = hour*3600 + minute*60
+
     workflow_entity = _check_workflow_exists(workflow_name)
     if workflow_entity and "workflowId" in workflow_entity:
         workflow_id = workflow_entity["workflowId"]
@@ -117,15 +136,7 @@ def schedule_daily_docusign_backup():
     else:
         freq_type = 8  # Weekly
         freq_interval = 127  # All days
-        days_to_run = {
-            "Monday": True,
-            "Tuesday": True,
-            "Wednesday": True,
-            "Thursday": True,
-            "Friday": True,
-            "Saturday": True,
-            "Sunday": True
-        }
+        days_to_run = {d: d == day_of_week for d in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}
 
     schedule_name = f"{workflow_name}-{schedule_type}-schedule"
 
@@ -134,7 +145,7 @@ def schedule_daily_docusign_backup():
         "freq_type": freq_type,
         "freq_interval": freq_interval,
         "freq_recurrence_factor": 1,
-        "active_start_time": 75600,
+        "active_start_time": trigger_time,
         "timeZone": {
             "TimeZoneID": 1000
         },
@@ -216,7 +227,8 @@ def get_docusign_backup_jobs(
     return formatted_response
 
 WORKFLOW_TOOLS = [
+    setup_docusign_backup_vault,
     trigger_docusign_backup,
-    schedule_daily_docusign_backup,
+    schedule_docusign_backup,
     get_docusign_backup_jobs
 ]
