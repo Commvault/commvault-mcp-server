@@ -171,7 +171,28 @@ def get_workflow_jobs(
     workflow_id = workflow_entity["workflowId"]
     endpoint = f"cr/reportsplusengine/datasets/e8ee6af4-58d8-4444-abae-3c096e5628a4/data?limit={limit}&offset={offset}&orderby=%5BjobEndTime%5DDESC&parameter.hideAdminJobs=0&parameter.jobCategory=3&parameter.showOnlyLaptopJobs=0&parameter.statusList%5B%5D=Completed%2C%22%22Completed+w%2F+one+or+more+errors%22%22%2C%22%22Completed+w%2F+one+or+more+warnings%22%22&parameter.completedJobLookupTime={jobLookupWindow}&parameter.workFlows={workflow_id}&parameter.jobTypes=90"
     response = commvault_api_client.get(endpoint)
-    return format_report_dataset_response(response)
+    formatted_response = format_report_dataset_response(response)
+    
+    # Filter the response to keep only important fields for LLM
+    if isinstance(formatted_response, dict) and "records" in formatted_response:
+        important_fields = [
+            "jobId",
+            "status",
+            "percentComplete",
+            "jobStartTime",
+            "jobEndTime", 
+            "jobElapsedTime",
+            "pendingReason"
+        ]
+        
+        filtered_records = []
+        for record in formatted_response["records"]:
+            filtered_record = {field: record.get(field) for field in important_fields if record.get(field) is not None}
+            filtered_records.append(filtered_record)
+        
+        formatted_response["records"] = filtered_records
+    
+    return formatted_response
 
 WORKFLOW_TOOLS = [
     trigger_docusign_backup_workflow,
