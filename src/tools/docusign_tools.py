@@ -27,7 +27,7 @@ import json
 
 
 DOCUSIGN_VAULT_NAME = "delete-chandan-test3"
-DOCUSIGN_WORKFLOW_NAME = "Backup Docusign"
+DOCUSIGN_WORKFLOW_NAME = "Backup Docusign Utility"
 
 
 def _check_workflow_exists(
@@ -42,10 +42,14 @@ def _check_workflow_exists(
                     return {"workflowId": entity.get("workflowId")}
     return None
 
-def _trigger_workflow(workflow_name: Annotated[str, Field(description="Name of the workflow to trigger.")]):
-    response = commvault_api_client.post(f"wapi/{workflow_name}")
+def _trigger_workflow(
+        workflow_name: Annotated[str, Field(description="Name of the workflow to trigger.")], 
+        operation_type: Annotated[str, Field(description="Type of operation to perform (backup/restore).")],
+        source_path: Annotated[str, Field(description="Source path for the restore operation.")]=None
+    ):
+    response = commvault_api_client.post(f"wapi/{workflow_name}", data={"operationType": operation_type, "path": source_path})
     if isinstance(response, dict) and "jobId" in response:
-        return {"message": f"Backup triggered successfully. Job ID: {response['jobId']}"}
+        return {"message": f"{operation_type} triggered successfully. Job ID: {response['jobId']}"}
     else:
         return response
 
@@ -190,7 +194,7 @@ def trigger_docusign_backup() -> dict:
         if not workflow_entity:
             raise Exception("Docusign backup is not configured. Please setup a vault to run backups.")
 
-        return _trigger_workflow(DOCUSIGN_WORKFLOW_NAME)
+        return _trigger_workflow(DOCUSIGN_WORKFLOW_NAME, operation_type="backup")
     except Exception as e:
         logger.error(f"Error triggering workflow {DOCUSIGN_WORKFLOW_NAME}: {e}")
         return ToolError({"error": str(e)})
@@ -254,7 +258,7 @@ def schedule_docusign_backup(
                     },
                     "pattern": pattern,
                     "options": {
-                        "workflowJobOptions": "<inputs></inputs>"
+                        "workflowJobOptions": "<inputs><operationType>Backup</operationType></inputs>"
                     }
                 }
             ],
@@ -275,13 +279,13 @@ def schedule_docusign_backup(
         return {"message": f"Schedule created successfully. Task ID: {response['taskId']}"}
     return response
 
-def get_docusign_backup_jobs(
+def get_docusign_jobs(
     jobLookupWindow: Annotated[int, Field(description="The time window in seconds to look up for jobs jobs. For example, 86400 for the last 24 hours.")]=86400,
     limit: Annotated[int, Field(description="The maximum number of jobs to return. Default is 50.")] = 50,
     offset: Annotated[int, Field(description="The offset for pagination.")] = 0
 ):
     """
-    Retrieves the list of Docusign backup jobs.
+    Retrieves the list of Docusign backup/restore jobs.
     """
     workflow_entity = _check_workflow_exists(DOCUSIGN_WORKFLOW_NAME)
     if not workflow_entity:
@@ -297,16 +301,31 @@ def get_docusign_backup_jobs(
         important_fields = [
             "jobId",
             "status",
-            "percentComplete",
+            # "percentComplete",
             "jobStartTime",
             "jobEndTime", 
-            "jobElapsedTime",
+            # "jobElapsedTime",
             "pendingReason"
         ]
         
         filtered_records = []
         for record in formatted_response["records"]:
             filtered_record = {field: record.get(field) for field in important_fields if record.get(field) is not None}
+            job_detail = commvault_api_client.post("JobDetails", data={"jobId": record.get("jobId")})
+            try:
+                workflow_inputs_xml = (
+                    job_detail.get("job", {})
+                    .get("jobDetail", {})
+                    .get("detailInfo", {})
+                    .get("workflowInputsXml", "")
+                )
+                if workflow_inputs_xml:
+                    if "restore" in workflow_inputs_xml.lower():
+                        filtered_record["operationType"] = "Restore"
+                    elif "backup" in workflow_inputs_xml.lower():
+                        filtered_record["operationType"] = "Backup"
+            except Exception:
+                pass
             filtered_records.append(filtered_record)
         
         formatted_response["records"] = filtered_records
@@ -465,10 +484,32 @@ def list_backedup_docusign_envelopes(
     logger.info(json.dumps(backup_data, indent=2))
     return backup_data
 
+def recover_docusign_envelope(
+    backup_date: Annotated[str, Field(description="Date in YYYY-MM-DD format when the envelope was backed up.")],
+    envelope_id: Annotated[str, Field(description="The ID of the envelope to recover.")]
+):
+    """
+    Trigger the restoration of a Docusign envelope from backup. 
+    Restored files will be saved to <commvault_temp_directory_path>/docusign-restores/<backup_date>/<envelope_id>. 
+    Please update the backup_date and envelope_id before responding. Temp directory path can be left as placeholder, assume user knows it.
+    """
+    try:
+        workflow_entity = _check_workflow_exists(DOCUSIGN_WORKFLOW_NAME)
+
+        if not workflow_entity:
+            raise Exception("Docusign backup is not configured. Please setup a vault to run backups.")
+
+        return _trigger_workflow(DOCUSIGN_WORKFLOW_NAME, operation_type="restore", source_path=f"{backup_date}/{envelope_id}")
+    except Exception as e:
+        logger.error(f"Error triggering workflow {DOCUSIGN_WORKFLOW_NAME}: {e}")
+        return ToolError({"error": str(e)})
+    
+
 DOCUSIGN_TOOLS = [
     setup_docusign_backup_vault,
     trigger_docusign_backup,
     schedule_docusign_backup,
-    get_docusign_backup_jobs,
-    list_backedup_docusign_envelopes
+    list_backedup_docusign_envelopes,
+    recover_docusign_envelope,
+    get_docusign_jobs
 ]
