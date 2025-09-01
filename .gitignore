@@ -15,6 +15,7 @@ wheels/
 
 # Log files
 *.log
+*.log.*
 
 # Configuration files
 config/*
