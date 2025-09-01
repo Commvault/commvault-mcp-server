@@ -17,6 +17,7 @@
 from fastmcp.exceptions import ToolError
 from typing import Annotated
 from pydantic import Field
+import boto3
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
@@ -309,9 +310,162 @@ def get_docusign_backup_jobs(
     
     return formatted_response
 
+def list_backedup_docusign_envelopes(
+    date: Annotated[str, Field(description="Date in YYYY-MM-DD format to list backups on specific date. Default is empty string which lists all backups.")] = ""
+):
+    """
+    Lists all backed up docusign envelopes and files. This can be used to fetch the paths of all backed up envelopes and their files.
+    """
+    def _get_s3_client(config):
+        try:
+            return boto3.client(
+                's3',
+                endpoint_url=config['aws']['endpoint'],
+                region_name=config['aws']['region'],
+                aws_access_key_id=config['aws']['accessKeyId'],
+                aws_secret_access_key=config['aws']['secretAccessKey'],
+                config=boto3.session.Config(s3={'addressing_style': 'path'})
+            )
+        except KeyError as e:
+            logger.exception(f"Missing S3 Vault config key: {e}. Please check your configuration file.")
+            raise
+
+    def _process_envelope(envelope_folder):
+        """Process a single envelope and return envelope data"""
+        envelope_id = envelope_folder.split("/")[-1]
+        logger.info(f"Processing envelope: {envelope_id}")
+        
+        document_files = []
+        envelope_params = {
+            "Bucket": DOCUSIGN_VAULT_NAME,
+            "Prefix": envelope_folder + "/"
+        }
+        
+        for envelope_page in paginator.paginate(**envelope_params):
+            if "Contents" in envelope_page:
+                for obj in envelope_page["Contents"]:
+                    if not obj["Key"].endswith("/"):
+                        file_name = obj["Key"].split(envelope_folder + "/")[1]
+                        if file_name not in ("metadata.json", "Summary"):
+                            document_files.append(file_name)
+                        logger.info(f"   |___ {obj['Key']}")
+        
+        envelope_entry = {"id": envelope_id}
+        if document_files:
+            if len(document_files) <= 10:
+                envelope_entry["docs"] = document_files
+            else:
+                envelope_entry["docs"] = f"{len(document_files)} documents"
+        
+        return envelope_entry
+
+    def _process_date_folder(folder):
+        """Process a date folder and return date entry with envelopes"""
+        folder_name = folder.split("/")[-1]
+        logger.info(f"Processing date folder: {folder}")
+        
+        date_entry = {
+            "date": folder_name,
+            "envelopes": []
+        }
+        
+        date_params = {
+            "Bucket": DOCUSIGN_VAULT_NAME,
+            "Prefix": folder + "/",
+            "Delimiter": "/"
+        }
+        
+        for date_page in paginator.paginate(**date_params):
+            if "CommonPrefixes" in date_page:
+                for envelope_cp in date_page["CommonPrefixes"]:
+                    envelope_folder = envelope_cp["Prefix"].rstrip("/")
+                    envelope_entry = _process_envelope(envelope_folder)
+                    date_entry["envelopes"].append(envelope_entry)
+        
+        return date_entry if date_entry["envelopes"] else None
+    
+    logger.info("----- Starting List Backup -----")
+
+    config_path = "config/docusign_config.json"
+    if not os.path.isfile(config_path):
+        raise Exception("Docusign Configuration file not found")
+
+    with open(config_path, "r", encoding="utf-8") as config_file:
+        config = json.load(config_file)
+
+    logger.info(config)
+    s3 = _get_s3_client(config)
+    paginator = s3.get_paginator("list_objects_v2")
+
+    backup_data = {"backups": []}
+
+    if date:
+        # When date is specified, process that specific date
+        if not date.endswith("/"):
+            date += "/"
+        
+        logger.info(f"Listing backup for specific date: [{date}], bucket: [{DOCUSIGN_VAULT_NAME}]")
+        
+        date_params = {
+            "Bucket": DOCUSIGN_VAULT_NAME,
+            "Prefix": date,
+            "Delimiter": "/"
+        }
+        
+        date_entry = {
+            "date": date.rstrip("/"),
+            "envelopes": []
+        }
+        
+        for date_page in paginator.paginate(**date_params):
+            if "CommonPrefixes" in date_page:
+                for envelope_cp in date_page["CommonPrefixes"]:
+                    envelope_folder = envelope_cp["Prefix"].rstrip("/")
+                    envelope_entry = _process_envelope(envelope_folder)
+                    date_entry["envelopes"].append(envelope_entry)
+        
+        if date_entry["envelopes"]:
+            backup_data["backups"].append(date_entry)
+    else:
+        # When no date specified, list all dates
+        operation_params = {
+            "Bucket": DOCUSIGN_VAULT_NAME,
+            "Prefix": "",
+            "Delimiter": "/"
+        }
+
+        logger.info(f"Listing all backup folders, bucket: [{DOCUSIGN_VAULT_NAME}]")
+
+        for page in paginator.paginate(**operation_params):
+            if "CommonPrefixes" in page:
+                for cp in page["CommonPrefixes"]:
+                    folder = cp["Prefix"].rstrip("/")
+                    folder_name = folder.split("/")[-1]
+                    
+                    # Only consider date folders (skip docusign-backup folder)
+                    if folder_name != "docusign-backup":
+                        date_entry = _process_date_folder(folder)
+                        if date_entry:
+                            backup_data["backups"].append(date_entry)
+
+    total_dates = len(backup_data["backups"])
+    total_envelopes = sum(len(date_data["envelopes"]) for date_data in backup_data["backups"])
+    backup_data["summary"] = f"{total_dates} dates, {total_envelopes} envelopes"
+
+    if total_dates == 0:
+        logger.info("No matching backups found.")
+        backup_data["message"] = "No backups found"
+    else:
+        logger.info(f"Found {total_dates} backup dates with {total_envelopes} envelopes")
+
+    logger.info("----- END List Backup -----")
+    logger.info(json.dumps(backup_data, indent=2))
+    return backup_data
+
 DOCUSIGN_TOOLS = [
     setup_docusign_backup_vault,
     trigger_docusign_backup,
     schedule_docusign_backup,
-    get_docusign_backup_jobs
+    get_docusign_backup_jobs,
+    list_backedup_docusign_envelopes
 ]
