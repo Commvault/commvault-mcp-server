@@ -18,4 +18,5 @@ wheels/
 *.log.*
 
 # Configuration files
-config/*
+config/*.json
+config/*.pem
