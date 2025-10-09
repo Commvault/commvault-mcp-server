@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.40.21",
     "fastmcp>=2.12.0",
+    "botocore>=1.40.21",
     "keyring>=25.6.0",
     "pyfiglet>=1.0.2",
     "pytest>=8.4.1",
