@@ -15,7 +15,7 @@
 # --------------------------------------------------------------------------
 
 from fastmcp.exceptions import ToolError
-from typing import Annotated, Optional, Dict, Any, List
+from typing import Annotated, Optional, Dict, Any
 from pydantic import Field
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -23,13 +23,12 @@ from botocore.exceptions import BotoCoreError, ClientError
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
 from src.wrappers import format_report_dataset_response
-import os
 import json
 from pathlib import Path
 
 
 # Constants
-DOCUSIGN_VAULT_NAME = "delete-chandan-test3"
+DOCUSIGN_VAULT_NAME = "docusign-backup-vault"
 DOCUSIGN_WORKFLOW_NAME = "Backup Docusign Utility"
 CONFIG_DIR = Path("config")
 DOCUSIGN_CONFIG_FILE = CONFIG_DIR / "docusign_config.json"

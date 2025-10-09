@@ -73,7 +73,7 @@ The following values will be collected during the setup process:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/chandansgowda-cv/commvault-mcp-server.git
+git clone https://github.com/Commvault/commvault-mcp-server.git
 cd commvault-mcp-server
 ```
 
