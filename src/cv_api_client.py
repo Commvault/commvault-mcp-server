@@ -21,7 +21,8 @@ from urllib.parse import urljoin
 import time
 from dotenv import load_dotenv
 
-from src.auth_service import AuthService
+from src.auth.oauth_service import OAuthService
+from src.auth.auth_service import AuthService
 from src.logger import logger
 from src.utils import get_env_var
 
@@ -29,18 +30,22 @@ load_dotenv()
 
 class CommvaultApiClient:
     
-    def __init__(self):
+    def __init__(self, use_oauth=False):
         self.base_url = get_env_var("CC_SERVER_URL") + "/commandcenter/api/"
         self.ssl_verify = get_env_var("SSL_VERIFY", default="true").lower() == "true"  # This is to disable SSL verification for development purposes
-        self.auth_service = AuthService()
-            
+        self.use_oauth = use_oauth
+        self.auth_service = OAuthService() if use_oauth else AuthService()
+
     def _get_headers(self, additional_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         auth_token, _ = self.auth_service.get_tokens()
         headers = {
-            'Accept': 'application/json',
-            'Authtoken': auth_token
+            'Accept': 'application/json'
         }
-        
+        if self.use_oauth:
+            headers['Authorization'] = auth_token # this will have Bearer prefix
+        else:
+            headers['Authtoken'] = auth_token
+
         if additional_headers:
             headers.update(additional_headers)
             
@@ -94,9 +99,9 @@ class CommvaultApiClient:
                 headers: Optional[Dict[str, str]] = None,
                 max_retries: int = 2,
                 retry_delay: float = 1.0) -> requests.Response:
-        
-        # Check if the secret key is passed in the header for sse and streamable-http modes
-        if get_env_var('MCP_TRANSPORT_MODE')!="stdio" and not self.auth_service.is_client_token_valid():
+
+        # Check if the secret key is passed in the header for sse and streamable-http modes when OAuth is not used
+        if get_env_var('USE_OAUTH', 'false')!="true" and get_env_var('MCP_TRANSPORT_MODE')!="stdio" and not self.auth_service.is_client_token_valid():
             logger.error("Invalid or missing token in client request")
             raise Exception("Invalid or missing token in request.")
         
@@ -123,10 +128,9 @@ class CommvaultApiClient:
                     verify= self.ssl_verify
                 )
                 logger.info(f"Response status code: {response.status_code}")
-                logger.debug(f"Response text: {response.json()}")
                 
                 # Handle 401 Unauthorized error (expired token)
-                if response.status_code == 401:
+                if response.status_code == 401 and not self.use_oauth:
                     logger.info("Received 401 Unauthorized response. Attempting to refresh token...")
                     success = self._refresh_access_token()
                     
@@ -159,8 +163,9 @@ class CommvaultApiClient:
                     time.sleep(backoff_time)
                 else:
                     # If we get here, it means we got a 401 and the token refresh failed
-                    raise Exception("Failed to refresh token. please create a new token update the keyring")
-                    
+                    if not self.use_oauth:
+                        raise Exception("Failed to refresh token. please create a new token update the keyring")
+                    raise e
             except requests.exceptions.RequestException as e:
                 retries += 1
                 if retries > max_retries:
@@ -189,4 +194,4 @@ class CommvaultApiClient:
         """Make a PUT request to the API."""
         return self.request("PUT", endpoint, params=params, data=data, headers=headers)
 
-commvault_api_client = CommvaultApiClient()
+commvault_api_client = CommvaultApiClient(use_oauth=(get_env_var('USE_OAUTH', 'false').lower() == 'true'))

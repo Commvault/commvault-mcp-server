@@ -14,15 +14,17 @@
 # limitations under the License.
 # --------------------------------------------------------------------------
 
-import os
-from typing import Optional
-from dotenv import load_dotenv
+from fastmcp.server.dependencies import get_http_request
+
+from src.logger import logger
 
 
-load_dotenv()
+class OAuthService:
 
-def get_env_var(var_name: str, default: Optional[str] = None) -> str:
-    value = os.getenv(var_name, default)
-    if value is None:
-        raise ValueError(f"Please check if you have set all the environment variables {var_name}. You can run the setup script to set them.")
-    return value
+    def get_tokens(self):
+        request = get_http_request()
+        auth_header = request.headers.get("Authorization")
+        if auth_header is None:
+            logger.error("Authentication validation failed")
+            raise Exception("Authentication validation failed. Please relogin and try again.")
+        return auth_header, None

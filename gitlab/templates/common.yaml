@@ -1,0 +1,19 @@
+image: alpine:latest
+
+variables:
+  GIT_DEPTH: 0
+
+stages:
+  - mirror
+
+mirror_to_github:
+  stage: mirror
+  only:
+    - main
+  before_script:
+    - apk add --no-cache git openssh
+  script:
+    - git fetch origin main
+    - git checkout main
+    - git remote add github https://oauth2:${GITHUB_TOKEN}@github.com/chandansgowda-cv/commvault-mcp-server.git
+    - git push github main --force

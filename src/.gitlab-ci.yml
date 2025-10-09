@@ -1,0 +1,11 @@
+stages:
+  - mirror
+
+mirror_to_github:
+  stage: mirror
+  only:
+    - main
+  when: manual
+  script:
+    - git remote add github https://oauth2:${GITHUB_TOKEN}@github.com/chandansgowda-cv/commvault-mcp-server.git
+    - git push github main --force

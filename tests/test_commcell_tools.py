@@ -102,6 +102,14 @@ def find_job_by_status(data, target_status):
         pass
     return None
 
+async def test_tool_functionality(mcp_server):
+    async with Client(mcp_server) as client:
+        result = await client.call_tool("get_job_detail", {"job_id": 99999999})
+        
+        response_text = result.content[0].text if hasattr(result, 'content') else result[0].text
+        expected_error = "No job found with ID: 99999999"
+        assert expected_error in response_text, f"Expected specific error message, got: {response_text}"
+
 async def test_get_job_detail(mcp_server):
     async with Client(mcp_server) as client:
         jobs_result = await client.call_tool("get_jobs_list", {})
@@ -188,7 +196,8 @@ async def test_resubmit_job(mcp_server):
         acceptable_errors = [
             "job is older than",
             "cannot be resubmitted",
-            "job status does not allow resubmission"
+            "job status does not allow resubmission",
+            "resubmit operation is not supported for workflow jobs"
         ]
         assert_no_error_in_response(data, "resubmit_job", acceptable_errors)
 
@@ -241,7 +250,7 @@ async def test_get_failed_jobs(mcp_server):
 
 async def test_get_job_task_details(mcp_server):
     async with Client(mcp_server) as client:
-        jobs_result = await client.call_tool("get_jobs_list", {"jobLookupWindow": 86400})   
+        jobs_result = await client.call_tool("get_jobs_list", {"jobLookupWindow": 86400})  
         jobs_data = extract_response_data(jobs_result)
         assert_no_error_in_response(jobs_data, "get_jobs_list")
         

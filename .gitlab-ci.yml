@@ -1,0 +1,2 @@
+include:
+  - local: '/gitlab/templates/common.yaml'
