@@ -466,8 +466,13 @@ def _get_vault_config(user_id: int, s3_endpoint: str) -> Dict[str, Any]:
             "accessKeyId": access_key_id,
             "secretAccessKey": secret_access_key
         }
-        return json.dumps(config)
-    
+
+        config_json = json.dumps(config, indent=2)
+        with open(DOCUSIGN_CONFIG_FILE, "w") as f:
+            f.write(config_json)
+
+        return config_json
+        
     except Exception as e:
         logger.error(f"Error getting and vault config: {str(e)}")
         raise Exception(f"Failed to get and vault config: {str(e)}")
