@@ -1,4 +1,6 @@
+
 {
+  "_comment": "This is a template for the docusign configuration file. Please fill in the values for the docusign configuration and save it as docusign_config.json in the config directory.",
   "docusign": {
     "integrationKey": "YOUR_INTEGRATION_KEY_HERE",
     "userId": "YOUR_USER_ID_HERE",
