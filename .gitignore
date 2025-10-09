@@ -18,5 +18,5 @@ wheels/
 *.log.*
 
 # Configuration files
-config/*.json
+config/docusign_config.json
 config/*.pem

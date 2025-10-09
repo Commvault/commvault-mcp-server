@@ -1,0 +1,10 @@
+{
+  "docusign": {
+    "integrationKey": "YOUR_INTEGRATION_KEY_HERE",
+    "userId": "YOUR_USER_ID_HERE",
+    "authServer": "account-d.docusign.com",
+    "scopes": "signature impersonation",
+    "basePath": "https://demo.docusign.net/restapi"
+  },
+  "fromDate": "2024-07-01T00:00:00Z"
+}
