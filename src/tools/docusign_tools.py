@@ -36,11 +36,6 @@ DOCUSIGN_CONFIG_FILE = CONFIG_DIR / "docusign_config.json"
 DOCUSIGN_KEY_FILE = CONFIG_DIR / "docusign_key.pem"
 DOCUSIGN_WORKFLOW_XML = CONFIG_DIR / "docusign_workflow.xml"
 
-# Required config keys for validation
-REQUIRED_CONFIG_KEYS = {
-    "aws": ["endpoint", "region", "accessKeyId", "secretAccessKey", "bucket"]
-}
-
 
 # ============================================================================
 # Helper Functions
@@ -84,38 +79,6 @@ def _load_json_config(config_path: Path) -> Dict[str, Any]:
         )
     
     return config
-
-
-def _validate_config_keys(config: Dict[str, Any], required_keys: Dict[str, List[str]]) -> None:
-    """
-    Validate that all required keys exist in the configuration.
-    
-    Args:
-        config: Configuration dictionary to validate
-        required_keys: Dictionary mapping section names to lists of required keys
-        
-    Raises:
-        ValueError: If any required keys are missing
-    """
-    missing_keys = []
-    
-    for section, keys in required_keys.items():
-        if section not in config:
-            missing_keys.append(f"Missing section '{section}'")
-            continue
-        
-        if not isinstance(config[section], dict):
-            raise ValueError(f"Configuration section '{section}' must be a dictionary.")
-        
-        for key in keys:
-            if key not in config[section] or not config[section][key]:
-                missing_keys.append(f"Missing or empty key '{section}.{key}'")
-    
-    if missing_keys:
-        raise ValueError(
-            f"Configuration validation failed:\n  - " + "\n  - ".join(missing_keys) +
-            f"\n\nPlease update '{DOCUSIGN_CONFIG_FILE}' with all required fields."
-        )
 
 
 def _read_file_safely(file_path: Path, file_description: str = "file") -> str:
