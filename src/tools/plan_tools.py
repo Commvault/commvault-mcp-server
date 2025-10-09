@@ -22,12 +22,16 @@ from src.cv_api_client import commvault_api_client
 from src.logger import logger
 
 
-def get_plan_list() -> dict:
+def get_plan_list(only_s3_vault_compatible: Annotated[bool, Field(description="Whether to filter plans for S3 vault.")]) -> dict:
     """
-    Gets the list of plans.
+    Gets the list of all plans. 
+    Special Condition: While fetching plans list for S3 vault, set the `only_s3_vault_compatible` parameter to True.
     """
     try:
-        response = commvault_api_client.get("v4/plan/summary")
+        if only_s3_vault_compatible:
+            response = commvault_api_client.get("v2/plan?subType=Server&fq=plans.storage.copy.storagePoolType:in:1,4&fl=plans.plan.planId,plans.plan.planName")
+        else:
+            response = commvault_api_client.get("v4/plan/summary")
         return response
     except Exception as e:
         logger.error(f"Error retrieving plan list: {e}")
