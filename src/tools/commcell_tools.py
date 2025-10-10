@@ -20,7 +20,7 @@ from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
-from src.wrappers import compute_security_score, format_report_dataset_response, transform_sla_data
+from wrappers.wrappers import compute_security_score, format_report_dataset_response, transform_sla_data
 
 
 def get_sla_status() -> dict:

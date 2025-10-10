@@ -20,7 +20,7 @@ from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
-from src.wrappers import filter_schedules_response
+from wrappers.wrappers import filter_schedules_response
 
 
 def get_schedules_list() -> dict:
