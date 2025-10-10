@@ -98,7 +98,7 @@ def _read_file_safely(file_path: Path, file_description: str = "file") -> str:
     if not file_path.exists():
         raise FileNotFoundError(
             f"{file_description.capitalize()} not found at '{file_path}'.\n"
-            f"Please ensure the file exists and is in the correct location."
+            f"Please refer to the documentation and ensure the file exists and is in the correct location."
         )
     
     try:
@@ -146,7 +146,25 @@ def _validate_time_format(time_str: str) -> tuple[int, int]:
             f"Invalid time format '{time_str}'. Expected 24-hour format HH:MM (e.g., '18:00'). Error: {str(e)}"
         )
 
+def _validate_all_reqirements():
+    """
+    Check if docusign config and private key files exist and are valid/non-empty.
+    Raises an exception if requirements are not met.
+    """
+    private_key = _read_file_safely(DOCUSIGN_KEY_FILE, "DocuSign private key file")
+    if not private_key:
+        raise Exception(f"DocuSign private key file at {DOCUSIGN_KEY_FILE} is empty.")
 
+    config = _load_json_config(DOCUSIGN_CONFIG_FILE)
+
+    required_docusign_keys = ["integrationKey", "userId", "authServer", "scopes", "basePath"]
+    if "docusign" not in config or not all(k in config["docusign"] for k in required_docusign_keys):
+        raise Exception(
+            f"Docusign configuration section not found or missing required keys in {DOCUSIGN_CONFIG_FILE}. "
+            "Please refer to the documentation to configure the Docusign integration."
+        )
+
+    
 def _check_workflow_exists(
     workflow_name: Annotated[str, Field(description="Name of the workflow to check for existence.")]):
     """
@@ -460,6 +478,8 @@ def setup_docusign_backup_vault(
         if vault_exists and workflow_exists:
             logger.info("DocuSign backup vault and workflow are already set up")
             return {"message": f"Docusign backup is already set up. You can trigger or schedule backups."}
+
+        _validate_all_reqirements()
 
         if not vault_exists:
             _create_docusign_backup_vault(plan_id, plan_name, user_id, user_name)
