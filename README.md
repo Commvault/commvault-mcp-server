@@ -159,13 +159,32 @@ Refer to your AI client’s documentation for integration steps. For example, Cl
 </details>
 
 <details>
-<summary>Local MCP Server (STDIO)</summary>
+<summary>Local MCP Server (STDIO) - Unix</summary>
 
 ```json
 {
   "mcpServers": {
     "Commvault": {
       "command": "C:\\YOUR\\PATH\\TO\\commvault-mcp-server\\.venv\\bin\\python",
+      "args": [
+        "C:\\YOUR\\PATH\\TO\\commvault-mcp-server\\src\\server.py"
+      ]
+    }
+  }
+}
+
+
+```
+</details>
+
+<details>
+<summary>Local MCP Server (STDIO) - Windows</summary>
+
+```json
+{
+  "mcpServers": {
+    "Commvault": {
+      "command": "C:\\YOUR\\PATH\\TO\\commvault-mcp-server\\.venv\\Scripts\\python.exe",
       "args": [
         "C:\\YOUR\\PATH\\TO\\commvault-mcp-server\\src\\server.py"
       ]

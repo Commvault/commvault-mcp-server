@@ -21,9 +21,11 @@ This module sets up and runs the Commvault MCP server with all available tools
 for interacting with Commvault product.
 """
 
+import os
 import sys
-from typing import List, Callable
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from typing import List, Callable
 from fastmcp import FastMCP
 from fastmcp.tools import Tool
 from fastmcp.server.auth.oauth_proxy import OAuthProxy

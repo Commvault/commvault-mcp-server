@@ -98,7 +98,7 @@ class ConfigManager:
             else:
                 config = ServerConfig(transport_mode=transport_mode)
 
-            logger.info(f"Configuration loaded successfully: transport={transport_mode} oauth={use_oauth}")
+            logger.info(f"Configuration loaded successfully: transport={transport_mode}")
             return config
             
         except (ValueError, TypeError) as e:
