@@ -180,6 +180,7 @@ def filter_client_list_response(response):
         })
     return {"clients": filtered_clients}
 
+
 def filter_schedules_response(response):
     """
     Filters the schedules API response to return only relevant information with LLM-friendly key names.

@@ -20,7 +20,7 @@ from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
-from src.wrappers import get_basic_job_details
+from wrappers.wrappers import get_basic_job_details
 
 
 def get_job_detail(job_id: Annotated[int, Field(description="The ID of the job to retrieve.")],) -> dict:
