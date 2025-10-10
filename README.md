@@ -20,6 +20,8 @@ The Commvault MCP Server enables seamless integration with Commvault environment
 | **User Management** | • List users and user groups<br>• Access security associations<br>• Manage user permissions |
 | **Plan Management** | • View plan configurations and details<br>• Access plan components and settings |
 | **Schedule Management** | • Access backup schedules<br>• View schedule configurations<br>• Monitor schedule performance |
+| **DocuSign Integration** | • Setup Docusign Vault & Workflow<br>• Backup envelopes to Commvault S3 vault<br>• List & restore DocuSign envelope backups |
+
 
 
 ## Prerequisites
@@ -173,6 +175,50 @@ Refer to your AI client’s documentation for integration steps. For example, Cl
 
 
 ```
+</details>
+
+## Additional Configuration
+
+> **Note:** These are optional integrations that extend the MCP server's capabilities.
+
+<details>
+<summary>DocuSign Backup Integration</summary>
+<br/>
+
+The DocuSign backup integration enables backup of completed DocuSign envelopes to a Commvault S3 vault. This integration provides comprehensive document management capabilities including backup, listing, and restore operations.
+
+### Prerequisites
+
+1. **Environment Variable**: Set `ENABLE_DOCUSIGN_TOOLS=true` in your environment
+2. **Commvault S3 Vault**: Configure an S3 endpoint in Commvault
+   - Learn more: [Getting Started with S3 Vault](https://documentation.commvault.com/11.42/software/getting_started_with_s3_vault.html)
+3. **DocuSign API Access**: Valid DocuSign integration credentials
+
+### Configuration Files
+
+Create the following files in the `config/` directory:
+
+#### 1. DocuSign Configuration (`docusign_config.json`)
+
+Based on the template file `config/docusign_config_template.json`:
+
+```json
+{
+  "docusign": {
+    "integrationKey": "YOUR_INTEGRATION_KEY_HERE",
+    "userId": "YOUR_USER_ID_HERE", 
+    "authServer": "account-d.docusign.com",
+    "scopes": "signature impersonation",
+    "basePath": "https://demo.docusign.net/restapi"
+  },
+  "fromDate": "2024-07-01T00:00:00Z"
+}
+```
+
+#### 2. DocuSign Private Key (`docusign_key.pem`)
+
+Place your DocuSign private key file in the `config/` directory as `docusign_key.pem`.
+
 </details>
 
 ## Contributing
