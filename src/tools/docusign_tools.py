@@ -762,9 +762,9 @@ def list_backedup_docusign_envelopes(
         try:
             # Validate required config keys
             required_keys = ['endpoint', 'region', 'accessKeyId', 'secretAccessKey']
-            aws_config = config.get('aws', {})
+            s3_config = config.get('aws', {})
             
-            missing_keys = [key for key in required_keys if not aws_config.get(key)]
+            missing_keys = [key for key in required_keys if not s3_config.get(key)]
             if missing_keys:
                 raise ValueError(
                     f"Missing required S3 configuration keys: {', '.join(missing_keys)}. "
@@ -773,10 +773,10 @@ def list_backedup_docusign_envelopes(
             
             return boto3.client(
                 's3',
-                endpoint_url=aws_config['endpoint'],
-                region_name=aws_config['region'],
-                aws_access_key_id=aws_config['accessKeyId'],
-                aws_secret_access_key=aws_config['secretAccessKey'],
+                endpoint_url=s3_config['endpoint'],
+                region_name=s3_config['region'],
+                aws_access_key_id=s3_config['accessKeyId'],
+                aws_secret_access_key=s3_config['secretAccessKey'],
                 config=boto3.session.Config(s3={'addressing_style': 'path'})
             )
         except (KeyError, ValueError) as e:
@@ -895,8 +895,8 @@ def list_backedup_docusign_envelopes(
         # Validate AWS configuration exists
         if 'aws' not in config:
             raise ValueError(
-                f"AWS configuration section not found in {DOCUSIGN_CONFIG_FILE}. "
-                "Please run setup to configure AWS credentials."
+                f"S3 configuration section not found in {DOCUSIGN_CONFIG_FILE}. "
+                "Please run setup to configure S3 credentials."
             )
         
         logger.debug(f"Configuration loaded successfully from {DOCUSIGN_CONFIG_FILE}")

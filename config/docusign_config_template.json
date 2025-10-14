@@ -8,5 +8,5 @@
     "scopes": "signature impersonation",
     "basePath": "https://demo.docusign.net/restapi"
   },
-  "fromDate": "2024-07-01T00:00:00Z"
+  "fromDate": "2024-07-01T00:00:00Z - Date from which to start fetching envelopes. Format: YYYY-MM-DDTHH:MM:SSZ"
 }
