@@ -27,6 +27,7 @@ from .plan_tools import PLAN_MANAGEMENT_TOOLS
 from .schedule_tools import SCHEDULE_MANAGEMENT_TOOLS
 from .storage_tools import STORAGE_MANAGEMENT_TOOLS
 from .user_tools import USER_MANAGEMENT_TOOLS
+from .docusign_tools import DOCUSIGN_TOOLS
 
 # All available tool categories
 ALL_TOOL_CATEGORIES = [
@@ -36,7 +37,8 @@ ALL_TOOL_CATEGORIES = [
     STORAGE_MANAGEMENT_TOOLS,
     PLAN_MANAGEMENT_TOOLS,
     COMMCELL_MANAGEMENT_TOOLS,
-    USER_MANAGEMENT_TOOLS
+    USER_MANAGEMENT_TOOLS,
+    DOCUSIGN_TOOLS
 ]
 
 __all__ = [
@@ -47,5 +49,6 @@ __all__ = [
     'SCHEDULE_MANAGEMENT_TOOLS',
     'STORAGE_MANAGEMENT_TOOLS',
     'USER_MANAGEMENT_TOOLS',
-    'ALL_TOOL_CATEGORIES'
+    'ALL_TOOL_CATEGORIES',
+    'DOCUSIGN_TOOLS'
 ]

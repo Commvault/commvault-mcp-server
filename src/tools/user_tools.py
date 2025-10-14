@@ -205,6 +205,16 @@ def get_roles_list() -> dict:
         logger.error(f"Error retrieving roles list: {e}")
         return ToolError({"error": str(e)})
     
+def get_my_user_info() -> dict:
+    """
+    Gets the information about the current user.
+    """
+    try:
+        response = commvault_api_client.get("v2/whoami")
+        return response
+    except Exception as e:
+        logger.error(f"Error retrieving my user info: {e}")
+        return ToolError({"error": str(e)})
     
 USER_MANAGEMENT_TOOLS = [
     get_users_list,
@@ -216,5 +226,6 @@ USER_MANAGEMENT_TOOLS = [
     get_associated_entities_for_user_or_group,
     view_entity_permissions,
     grant_or_revoke_access_to_entity,
-    get_roles_list
+    get_roles_list,
+    get_my_user_info
 ]

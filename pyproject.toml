@@ -5,6 +5,7 @@ description = "Commvault's Official MCP Server"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "boto3>=1.40.49",
     "fastmcp>=2.12.0",
     "keyring>=25.6.0",
     "pyfiglet>=1.0.2",
