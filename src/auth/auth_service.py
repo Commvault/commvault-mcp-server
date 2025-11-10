@@ -20,6 +20,7 @@ import sys
 from fastmcp.server.dependencies import get_http_request
 
 from src.logger import logger
+from src.utils import is_arlie_lite_mode, get_json_config_var, set_json_config_var
 
 
 class AuthService:
@@ -34,21 +35,34 @@ class AuthService:
         return self.__access_token, self.__refresh_token
     
     def fetch_and_set_tokens(self):
-        access_token = keyring.get_password(self.__service_name, "access_token")
-        refresh_token = keyring.get_password(self.__service_name, "refresh_token")
-        if access_token is None or refresh_token is None:
-            logger.critical("Please set the tokens from command line before running the server. Refer to the documentation for more details.")
-            sys.exit(1)
+        if not is_arlie_lite_mode():
+            access_token = keyring.get_password(self.__service_name, "access_token")
+            refresh_token = keyring.get_password(self.__service_name, "refresh_token")
+            if access_token is None or refresh_token is None:
+                logger.critical("Please set the tokens from command line before running the server. Refer to the documentation for more details.")
+                sys.exit(1)
+        else:
+            access_token = get_json_config_var("access_token")
+            refresh_token = get_json_config_var("refresh_token")
+            if access_token is None or refresh_token is None:
+                logger.critical("Please set the tokens in config.json before running the server. Refer to the documentation for more details.")
+                sys.exit(1)
         self.__access_token = access_token
         self.__refresh_token = refresh_token
         return access_token, refresh_token
     
     def set_access_token(self, access_token: str):
-        keyring.set_password(self.__service_name, "access_token", access_token)
+        if not is_arlie_lite_mode():
+            keyring.set_password(self.__service_name, "access_token", access_token)
+        else:
+            set_json_config_var("access_token", access_token)
         self.__access_token = access_token
     
     def set_refresh_token(self, refresh_token: str):
-        keyring.set_password(self.__service_name, "refresh_token", refresh_token)
+        if not is_arlie_lite_mode():
+            keyring.set_password(self.__service_name, "refresh_token", refresh_token)
+        else:
+            set_json_config_var("refresh_token", refresh_token)
         self.__refresh_token = refresh_token
 
     def set_tokens(self, access_token: str, refresh_token: str):

@@ -37,3 +37,21 @@ def get_json_config_var(var_name: str) -> str:
         return config.get(var_name)
     except Exception as e:
         return None
+
+def set_json_config_var(var_name: str, value: str):
+    try:
+        config_path = Path(__file__).resolve().parents[2] / "config.json"
+        with open(config_path, "r") as f:
+            config = json.load(f)
+        config[var_name.lower()] = value
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=4)
+    except Exception as e:
+        raise Exception(f"Error setting config.json variable {var_name}: {e}")
+
+def is_arlie_lite_mode(): # currently json config is only used for arlie lite mode
+    try:
+        config_path = Path(__file__).resolve().parents[2] / "config.json"
+        return config_path.exists()
+    except Exception:
+        return False
