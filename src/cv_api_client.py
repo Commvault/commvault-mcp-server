@@ -102,9 +102,8 @@ class CommvaultApiClient:
 
         # Check if the secret key is passed in the header for sse and streamable-http modes when OAuth/Arlie Lite mode is not used
         should_check_token = (
-            get_env_var('USE_OAUTH', 'false')!="true" and 
-            get_env_var('MCP_TRANSPORT_MODE')!="stdio" and 
-            not get_env_var('ARLIE_LITE_MODE', 'false')!="true" and 
+            get_env_var('USE_OAUTH', 'false') != "true" and 
+            get_env_var('MCP_TRANSPORT_MODE') != "stdio" and 
             not self.auth_service.is_client_token_valid()
         )
         if should_check_token:
