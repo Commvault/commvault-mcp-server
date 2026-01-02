@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from src.auth.oauth_service import OAuthService
 from src.auth.auth_service import AuthService
 from src.logger import logger
-from src.utils import get_env_var
+from src.utils import get_env_var, sanitize_endpoint_path
 
 load_dotenv()
 
@@ -52,7 +52,16 @@ class CommvaultApiClient:
         return headers
     
     def _build_url(self, endpoint: str) -> str:
-        return urljoin(self.base_url, endpoint)
+        # Sanitize endpoint to prevent path traversal attacks
+        try:
+            sanitized_endpoint = sanitize_endpoint_path(endpoint)
+            if sanitized_endpoint != endpoint:
+                logger.warning(f"Endpoint was sanitized: '{endpoint}' -> '{sanitized_endpoint}'")
+        except ValueError as e:
+            logger.error(f"Invalid endpoint: {e}")
+            raise Exception("Invalid endpoint")
+        
+        return urljoin(self.base_url, sanitized_endpoint)
 
     def _refresh_access_token(self) -> bool:
         try:
