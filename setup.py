@@ -47,6 +47,18 @@ def save_env(env_vars):
         for k, v in env_vars.items():
             f.write(f"{k}={v}\n")
 
+def validate_https_url(url):
+    if not url:
+        return False, "URL cannot be empty."
+    
+    url_lower = url.lower().strip()
+    if url_lower.startswith('http://'):
+        return False, "HTTP URLs are not allowed for security reasons. Please use HTTPS."
+    if not url_lower.startswith('https://'):
+        return False, "URL must start with 'https://' for secure communication."
+    
+    return True, None
+
 def prompt_update_env(env_vars):
     keys = ['CC_SERVER_URL', 'MCP_TRANSPORT_MODE', 'MCP_HOST', 'MCP_PORT', 'MCP_PATH']
     transport_modes = ['streamable-http', 'stdio', 'sse']
@@ -56,7 +68,20 @@ def prompt_update_env(env_vars):
     for key in keys:
         current_val = env_vars.get(key, '')
 
-        if key == 'MCP_TRANSPORT_MODE':
+        if key == 'CC_SERVER_URL':
+            while True:
+                val = Prompt.ask(key, default=current_val if current_val else '')
+                if not val:
+                    console.print("[red]CC_SERVER_URL is required. Please enter a valid HTTPS URL.[/red]")
+                    continue
+                
+                is_valid, error_msg = validate_https_url(val)
+                if is_valid:
+                    env_vars[key] = val
+                    break
+                else:
+                    console.print(f"[red]{error_msg}[/red]")
+        elif key == 'MCP_TRANSPORT_MODE':
             console.print(f"{key} [dim](Current: {current_val if current_val else 'None'})[/dim]")
             for i, mode in enumerate(transport_modes, 1):
                 console.print(f"  {i}. {mode}")
