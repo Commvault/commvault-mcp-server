@@ -16,6 +16,8 @@
 
 import os
 import secrets
+import time
+from datetime import datetime
 from getpass import getpass
 from urllib.parse import urljoin
 
@@ -229,11 +231,20 @@ def prompt_and_save_keyring(service_name, env_vars):
         # Auto-generate server_secret
         console.print("[bold]Server Secret (Auto-generated)[/bold]")
         server_secret = secrets.token_urlsafe(32)  # 32 bytes = 43 characters URL-safe
+        
+        # Calculate expiry: 30 days from now
+        expiry_timestamp = time.time() + (30 * 24 * 60 * 60)  # 30 days in seconds
+        expiry_date = datetime.fromtimestamp(expiry_timestamp)
+        
+        # Store server_secret and its expiry
         keyring.set_password(service_name, 'server_secret', server_secret)
-        console.print("[green]✓ Server secret generated and stored securely.[/green]")
+        keyring.set_password(service_name, 'server_secret_expiry', str(expiry_timestamp))
+        
+        console.print("[green]Server secret generated and stored securely.[/green]")
         console.print("\n[bold yellow]IMPORTANT: Copy this server secret for your LLM configuration:[/bold yellow]")
         console.print(f"[bold cyan]{server_secret}[/bold cyan]")
-        console.print("[dim]This secret must be included in the Authorization header when connecting to the MCP server.[/dim]\n")
+        console.print("[dim]This secret must be included in the Authorization header when connecting to the MCP server.[/dim]")
+        console.print(f"[dim]This secret will expire on {expiry_date.strftime('%Y-%m-%d %H:%M:%S')}. You will need to regenerate it after expiration.[/dim]\n")
         
         # Prompt for access_token and refresh_token with validation
         console.print("[bold]Commvault API Tokens[/bold]")
