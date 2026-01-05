@@ -66,6 +66,37 @@ def validate_https_url(url):
     
     return True, None
 
+def is_keyring_secure():
+    """
+    Check if the current keyring backend is secure.
+    Returns (is_secure: bool, backend_name: str, backend_type: str)
+    """
+    try:
+        current_keyring = keyring.get_keyring()
+        backend_name = current_keyring.name if hasattr(current_keyring, 'name') else 'Unknown'
+        backend_type = type(current_keyring).__name__
+        backend_module = type(current_keyring).__module__
+        full_backend_path = f"{backend_module}.{backend_type}"
+        
+        insecure_backends = [
+            'PlaintextKeyring',
+            'keyrings.alt.file.PlaintextKeyring',
+            'keyring.backends.fail.Keyring',
+        ]
+        
+        is_secure = True
+        for insecure in insecure_backends:
+            if insecure in backend_type or insecure in full_backend_path:
+                is_secure = False
+                break
+
+        if 'file' in backend_module.lower() and 'plain' in backend_type.lower():
+            is_secure = False
+        
+        return is_secure, backend_name, full_backend_path
+    except Exception as e:
+        return False, 'Unknown', f'Error checking backend: {str(e)}'
+
 def validate_commvault_tokens(access_token, refresh_token, server_url):
     """
     Validate Commvault access and refresh tokens by making a test API call.
@@ -225,6 +256,36 @@ def prompt_update_env(env_vars):
 def prompt_and_save_keyring(service_name, env_vars):
     # Only ask for keyring secrets if NOT using OAuth
     if env_vars.get('USE_OAUTH', 'false').lower() != 'true':
+        # Check keyring backend security before proceeding
+        is_secure, backend_name, backend_path = is_keyring_secure()
+        
+        if not is_secure:
+            console.print(f"\n[bold red]SECURITY WARNING: Insecure Keyring Backend Detected[/bold red]")
+            console.print(f"[yellow]Current backend: {backend_path}[/yellow]")
+            console.print("[red]The detected keyring backend stores secrets in plaintext files protected only by file system permissions.[/red]")
+            console.print("[red]This is NOT secure for production use and poses a security risk.[/red]\n")
+            console.print("[bold]Your options:[/bold]")
+            console.print("  1. Continue at your own risk (NOT RECOMMENDED)")
+            console.print("  2. Exit setup and configure a secure keyring\n")
+            
+            while True:
+                choice = Prompt.ask("Select an option [1-3]", default='3')
+                if choice == '1':
+                    proceed = Prompt.ask(
+                        "[bold red]Are you sure you want to continue with an insecure keyring? (yes/no)[/bold red]",
+                        default='no'
+                    )
+                    if proceed.lower() not in ['yes', 'y']:
+                        console.print("[yellow]Setup cancelled. Please configure a secure keyring backend before proceeding.[/yellow]")
+                        exit(1)
+                    console.print("[bold yellow]Proceeding with insecure keyring at your own risk.[/bold yellow]\n")
+                    break
+                elif choice == '2':
+                    console.print("[yellow]Setup cancelled. Please configure a secure keyring backend before proceeding.[/yellow]")
+                    exit(1)
+                else:
+                    console.print("[red]Invalid choice. Please enter 1 or 2.[/red]")
+        
         console.print(f"\n[bold underline]Secure Tokens (stored in OS keyring)[/bold underline]")
         console.print("[bold yellow]Warning: Ensure you're entering sensitive tokens in a secure terminal environment.[/bold yellow]\n")
         
