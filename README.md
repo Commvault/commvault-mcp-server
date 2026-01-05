@@ -17,7 +17,7 @@ The Commvault MCP Server enables seamless integration with Commvault environment
 | **Commcell Management** | • Retrieve SLA status and compliance<br>• View security posture and scores<br>• Access storage space utilization metrics<br>• Get commcell details and entity counts |
 | **Client Management** | • Access client groups and client information<br>• Manage subclients and client properties<br>• View client associations |
 | **Storage Management** | • View storage policies and configurations<br>• Access storage pool information<br>• Monitor storage resources |
-| **User Management** | • List users and user groups<br>• Access security associations<br>• Manage user permissions |
+| **User Management** | • List users and user groups<br>• Access security associations |
 | **Plan Management** | • View plan configurations and details<br>• Access plan components and settings |
 | **Schedule Management** | • Access backup schedules<br>• View schedule configurations<br>• Monitor schedule performance |
 | **DocuSign Integration** | • Setup Docusign Vault & Workflow<br>• Backup envelopes to Commvault S3 vault<br>• List & restore DocuSign envelope backups |

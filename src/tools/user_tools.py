@@ -84,30 +84,6 @@ def get_user_group_properties(user_group_id: Annotated[str, Field(description="T
     except Exception as e:
         logger.error(f"Error retrieving user group properties: {e}")
         return ToolError({"error": str(e)})
-
-def set_user_group_assignment(
-    user_id: Annotated[str, Field(description="The user id to assign to the user group.")], 
-    user_group_id: Annotated[str, Field(description="The user group id to assign the user to.")], 
-    assign: Annotated[bool, Field(description="Set to True to assign the user to the group, False to remove the user from the group.")]=True
-    ) -> dict:
-    """
-    Assigns or removes a user from a user group based on the 'assign' flag.
-    Set assign=True to add the user to the group, or assign=False to remove the user from the group.
-    """
-    try:
-        operation = "ADD" if assign else "DELETE"
-        payload = {
-            "userGroupOperation": operation,
-            "userGroups": [
-                {
-                    "id": user_group_id
-                }
-            ],
-        }
-        return commvault_api_client.put(f"v4/user/{user_id}", data=payload)
-    except Exception as e:
-        logger.error(f"Error assigning user {user_id} to user group {user_group_id}: {e}")
-        return ToolError({"error": str(e)})
     
 def get_associated_entities_for_user_or_group(id: Annotated[str, Field(description="The user or user group id to retrieve associated entities for.")], type: Annotated[str, Field(description="Specify 'user' for user id or 'usergroup' for user group id.")]) -> dict:
     """
@@ -133,66 +109,6 @@ def view_entity_permissions(
     except Exception as e:
         logger.error(f"Error retrieving permissions for entity {entity_type} with ID {entity_id}: {e}")
         return ToolError({"error": str(e)})
-
-def grant_or_revoke_access_to_entity(
-    entity_id: Annotated[str, Field(description="The ID of the entity to grant access to.")],
-    entity_type: Annotated[str, Field(description="The type of the entity to grant access to. Valid values: 'client', 'client_group', 'agent', 'instance', 'backup_set', 'subclient', 'storage_policy', 'schedule_policy', 'alert', 'workflow', 'plan'.")],
-    role_id: Annotated[int, Field(description="The role ID to assign. You can get the role ID using the get_roles_list tool or ask the user to provide it.")],
-    user_id: Annotated[str, Field(description="The user ID to grant access to.")],
-    assign: Annotated[bool, Field(description="Set to True to grant access, False to revoke access. Default is True.")]=True
-) -> dict:
-    """
-    Grants or revokes access to an entity for a user with a specific role.
-    """
-    ENTITY_TYPE_MAP = {
-        "client": 3,
-        "client_group": 28,
-        "agent": 4,
-        "instance": 5,
-        "backup_set": 6,
-        "subclient": 7,
-        "storage_policy": 17,
-        "schedule_policy": 35,
-        "alert": 64,
-        "workflow": 83,
-        "plan": 158,
-    }
-    try:
-        entity_type_num = ENTITY_TYPE_MAP.get(entity_type.lower())
-        if entity_type_num is None:
-            raise ValueError(f"Invalid entity_type: {entity_type}")
-        payload = {
-            "entityAssociated": {
-                "entity": [
-                    {
-                        "entityType": entity_type_num,
-                        "_type_": entity_type_num if entity_type.lower() != "plan" else 150, # plan uses a different _type_
-                        "entityId":entity_id
-                    }
-                ]
-            },
-            "securityAssociations": {
-                "associationsOperationType": "ADD" if assign else "DELETE",
-                "associations": [
-                    {
-                        "userOrGroup": [
-                            {
-                                "userId": user_id
-                            }
-                        ],
-                        "properties": {
-                            "role": {
-                                "roleId": role_id
-                            }
-                        }
-                    }
-                ]
-            }
-        }
-        return commvault_api_client.post("Security", data=payload)
-    except Exception as e:
-        logger.error(f"Error granting/revoking access to entity {entity_id}: {e}")
-        return ToolError({"error": str(e)})
     
 def get_roles_list() -> dict:
     """
@@ -215,17 +131,15 @@ def get_my_user_info() -> dict:
     except Exception as e:
         logger.error(f"Error retrieving my user info: {e}")
         return ToolError({"error": str(e)})
-    
+
 USER_MANAGEMENT_TOOLS = [
     get_users_list,
     get_user_properties,
     set_user_enabled,
     get_user_groups_list,
     get_user_group_properties,
-    set_user_group_assignment,
     get_associated_entities_for_user_or_group,
     view_entity_permissions,
-    grant_or_revoke_access_to_entity,
     get_roles_list,
     get_my_user_info
 ]
