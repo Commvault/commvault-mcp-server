@@ -110,9 +110,10 @@ class CommvaultApiClient:
                 retry_delay: float = 1.0) -> requests.Response:
 
         # Check if the secret key is passed in the header for sse and streamable-http modes when OAuth is not used
-        if get_env_var('USE_OAUTH', 'false')!="true" and get_env_var('MCP_TRANSPORT_MODE')!="stdio" and not self.auth_service.is_client_token_valid():
-            logger.error("Invalid or missing token in client request")
-            raise Exception("Invalid or missing token in request.")
+        if get_env_var('USE_OAUTH', 'false')!="true" and get_env_var('MCP_TRANSPORT_MODE')!="stdio":
+            is_valid, error_message = self.auth_service.is_client_token_valid()
+            if not is_valid:
+                raise Exception(f"{error_message}")
         
         url = self._build_url(endpoint)
         request_headers = self._get_headers(headers)
