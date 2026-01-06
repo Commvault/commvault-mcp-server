@@ -97,6 +97,21 @@ uv run setup.py
 ```bash
 uv run -m src.server
 ```
+<details>
+<summary>Secure Production Deployment</summary>
+<br/>
+
+For production deployments, it is recommended to use a reverse proxy with TLS/HTTPS and security headers. The MCP server should bind to `127.0.0.1` (localhost only) to prevent direct public access.
+
+### Quick Setup
+
+1. **Configure MCP Server for localhost**: Set `MCP_HOST=127.0.0.1` in your `.env` file
+2. **Install reverse proxy**: Choose nginx or Caddy
+3. **Configure TLS**: Use Let's Encrypt for automatic certificate management
+4. **Add security headers**: Configure [OWASP-recommended](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html#security-headers) headers (HSTS, X-Frame-Options, CSP, etc.)
+5. **Update client config**: Use `https://your-domain.com/mcp` instead of `http://HOST:PORT/mcp`
+
+</details>
 
 ## Configuring Clients
 
