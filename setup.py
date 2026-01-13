@@ -78,20 +78,55 @@ def is_keyring_secure():
         backend_module = type(current_keyring).__module__
         full_backend_path = f"{backend_module}.{backend_type}"
         
-        insecure_backends = [
-            'PlaintextKeyring',
-            'keyrings.alt.file.PlaintextKeyring',
-            'keyring.backends.fail.Keyring',
+        # Whitelist of secure keyring backends across all platforms
+        # These backends use OS-native secure storage mechanisms
+        secure_backends = [
+            # Windows secure backends
+            'keyring.backends.Windows.WinVaultKeyring',
+            'keyring.backends.Windows.WinCredentialStore',
+            'keyring.backends.windows.WinVaultKeyring',
+            'keyring.backends.windows.WinCredentialStore',
+            'WinVaultKeyring',
+            'WinCredentialStore',
+            
+            # macOS secure backends
+            'keyring.backends.macOS.Keyring',
+            'keyring.backends.macos.Keyring',
+            'keyring.backends.OS_X.Keyring',
+            'keyring.backends.osx.Keyring',
+            
+            # Linux secure backends
+            'keyring.backends.SecretService.Keyring',
+            'keyring.backends.secretstorage.Keyring',
+            'keyring.backends.kwallet.Keyring',
+            'keyring.backends.kwallet.DBusKeyring',
+            'SecretService.Keyring',
         ]
         
-        is_secure = True
-        for insecure in insecure_backends:
-            if insecure in backend_type or insecure in full_backend_path:
-                is_secure = False
+        # Check if the current backend matches any secure backend
+        is_secure = False
+        for secure_backend in secure_backends:
+            if (secure_backend in full_backend_path or 
+                secure_backend in backend_type or
+                secure_backend in backend_module):
+                is_secure = True
                 break
-
-        if 'file' in backend_module.lower() and 'plain' in backend_type.lower():
-            is_secure = False
+        
+        # Special handling for generic 'Keyring' class name
+        # Only allow it if it's from a secure module (SecretService, macOS, etc.)
+        if not is_secure and backend_type == 'Keyring':
+            secure_modules = [
+                'keyring.backends.SecretService',
+                'keyring.backends.secretstorage',
+                'keyring.backends.macOS',
+                'keyring.backends.macos',
+                'keyring.backends.OS_X',
+                'keyring.backends.osx',
+            ]
+            for secure_module in secure_modules:
+                if secure_module in backend_module:
+                    is_secure = True
+                    break
         
         return is_secure, backend_name, full_backend_path
     except Exception as e:
@@ -260,31 +295,13 @@ def prompt_and_save_keyring(service_name, env_vars):
         is_secure, backend_name, backend_path = is_keyring_secure()
         
         if not is_secure:
-            console.print(f"\n[bold red]SECURITY WARNING: Insecure Keyring Backend Detected[/bold red]")
+            console.print(f"\n[bold red]SECURITY ERROR: Unsupported Keyring Backend Detected[/bold red]")
             console.print(f"[yellow]Current backend: {backend_path}[/yellow]")
-            console.print("[red]The detected keyring backend stores secrets in plaintext files protected only by file system permissions.[/red]")
-            console.print("[red]This is NOT secure for production use and poses a security risk.[/red]\n")
-            console.print("[bold]Your options:[/bold]")
-            console.print("  1. Continue at your own risk (NOT RECOMMENDED)")
-            console.print("  2. Exit setup and configure a secure keyring\n")
-            
-            while True:
-                choice = Prompt.ask("Select an option [1-3]", default='3')
-                if choice == '1':
-                    proceed = Prompt.ask(
-                        "[bold red]Are you sure you want to continue with an insecure keyring? (yes/no)[/bold red]",
-                        default='no'
-                    )
-                    if proceed.lower() not in ['yes', 'y']:
-                        console.print("[yellow]Setup cancelled. Please configure a secure keyring backend before proceeding.[/yellow]")
-                        exit(1)
-                    console.print("[bold yellow]Proceeding with insecure keyring at your own risk.[/bold yellow]\n")
-                    break
-                elif choice == '2':
-                    console.print("[yellow]Setup cancelled. Please configure a secure keyring backend before proceeding.[/yellow]")
-                    exit(1)
-                else:
-                    console.print("[red]Invalid choice. Please enter 1 or 2.[/red]")
+            console.print("[red]Only secure, OS-native keyring backends are allowed for security reasons.[/red]\n")
+            console.print("[bold yellow]For detailed information about supported backends and configuration instructions,[/bold yellow]")
+            console.print("[bold yellow]please refer to the README.md file (Prerequisites > Secure Keyring Backend section).[/bold yellow]\n")
+            console.print("[red]Setup aborted. Please configure a secure keyring backend before proceeding.[/red]")
+            exit(1)
         
         console.print(f"\n[bold underline]Secure Tokens (stored in OS keyring)[/bold underline]")
         console.print("[bold yellow]Warning: Ensure you're entering sensitive tokens in a secure terminal environment.[/bold yellow]\n")

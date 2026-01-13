@@ -70,6 +70,22 @@ The following values will be collected during the setup process:
   It acts as a security layer for tool access in remote server. You can set your own.
 </details>
 
+### 3. Secure Keyring Backend (Required for Token-Based Authentication)
+
+> **Important:** When using traditional token-based authentication, the setup script requires a secure, OS-native keyring backend to store sensitive credentials securely. Only secure backends are allowed for security reasons.
+
+The Commvault MCP Server uses a whitelist approach to ensure only secure keyring backends are used. The following backends are supported:
+
+#### Supported Secure Backends by Platform
+
+| Platform | Supported Backends | Description |
+|----------|-------------------|-------------|
+| **Windows** | `WinVaultKeyring`, `WinCredentialStore` | Uses Windows Credential Manager (Windows Vault) for secure storage |
+| **macOS** | `macOS Keyring` | Uses the native macOS Keychain for secure storage |
+| **Linux** | `SecretService` (GNOME), `KWallet` (KDE) | Uses Freedesktop Secret Service API (GNOME) or KWallet (KDE) for secure storage |
+
+> **Security Note:** The setup script will **immediately exit** if an insecure backend is detected. There is no option to override this security requirement. You must configure a secure, OS-native keyring backend before proceeding with the setup.
+
 ## Setup
 
 ### 1. Clone the repository
