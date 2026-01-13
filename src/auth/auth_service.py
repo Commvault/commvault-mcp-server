@@ -15,10 +15,13 @@
 # --------------------------------------------------------------------------
 
 import hmac
+import ipaddress
 import keyring
+import os
 import sys
 import time
 import threading
+from functools import lru_cache
 from fastmcp.server.dependencies import get_http_request
 
 from src.logger import logger
@@ -60,23 +63,68 @@ class AuthService:
     def set_tokens(self, access_token: str, refresh_token: str):
         self.set_access_token(access_token)
         self.set_refresh_token(refresh_token)
-    
-    def _get_client_ip(self, request) -> str:
-        # Check X-Forwarded-For header first (for reverse proxies)
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            # Take the first IP if multiple are present
-            return forwarded_for.split(",")[0].strip()
+
+    @lru_cache(maxsize=None)
+    def _get_trusted_proxy_ips(self) -> set:
+        trusted_proxies = os.getenv("TRUSTED_PROXY_IPS", "").strip()
+        if not trusted_proxies:
+            return set()
         
-        # Fall back to direct client connection
+        proxy_ips = set()
+        for ip_str in trusted_proxies.split(","):
+            ip_str = ip_str.strip()
+            if ip_str:
+                try:
+                    # Validate and normalize IP address
+                    ip = ipaddress.ip_address(ip_str)
+                    proxy_ips.add(str(ip))
+                except ValueError:
+                    logger.warning(f"Invalid trusted proxy IP in configuration: {ip_str}")
+        
+        return proxy_ips
+    
+    def _is_valid_ip(self, ip_str: str) -> bool:
+        try:
+            ipaddress.ip_address(ip_str.strip())
+            return True
+        except (ValueError, AttributeError):
+            return False
+    
+    def _get_direct_connection_ip(self, request) -> str | None:
         if hasattr(request, "client") and request.client:
             return request.client.host
+        return None
+    
+    def _get_client_ip(self, request) -> str | None:
+        direct_ip = self._get_direct_connection_ip(request)
         
-        return "unknown"
+        trusted_proxies = self._get_trusted_proxy_ips()
+        is_behind_trusted_proxy = direct_ip and direct_ip in trusted_proxies
+        
+        # Only trust X-Forwarded-For if behind a trusted proxy
+        if is_behind_trusted_proxy:
+            forwarded_for = request.headers.get("X-Forwarded-For")
+            if forwarded_for:
+                client_ip = forwarded_for.split(",")[0].strip()
+                if self._is_valid_ip(client_ip):
+                    logger.debug(f"Using X-Forwarded-For IP {client_ip} (trusted proxy: {direct_ip})")
+                    return client_ip
+                else:
+                    logger.warning(
+                        f"Invalid IP in X-Forwarded-For header: {client_ip}. "
+                        f"Falling back to direct connection IP: {direct_ip}"
+                    )
+        
+        # Use direct connection IP (default)
+        return direct_ip
     
     def is_client_token_valid(self) -> (bool, str|None):
         request = get_http_request()
         client_ip = self._get_client_ip(request)
+        if client_ip is None:
+            logger.error("Authentication validation failed: Unable to determine client IP address")
+            return False, "Unable to determine client IP address. Request rejected."
+        
         current_time = time.time()
         
         # Check if client is rate-limited
@@ -105,20 +153,21 @@ class AuthService:
             return False, "Server secrets missing. Please check server configuration."
 
         expiry_str = keyring.get_password(self.__service_name, "server_secret_expiry")
-        if expiry_str:
-            try:
-                expiry_timestamp = float(expiry_str)
-                if current_time > expiry_timestamp:
-                    expiry_date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expiry_timestamp))
-                    logger.error(
-                        f"Authentication validation failed: Server secret expired on {expiry_date}"
-                    )
-                    return False, f"Server secret has expired). Please regenerate the server secret using the setup script."
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Invalid expiry timestamp format: {e}. Proceeding with secret validation.")
-        else:
-            # allowing it for backward compatibility
-            logger.warning("Server secret has no expiry set. Consider regenerating it with the setup script to set an expiration date.")
+        if expiry_str is None:
+            logger.error("Authentication validation failed: Server secret expiry not set")
+            return False, "Server secret expiry is not set. Please rerun the setup script to configure the server secret with an expiration date."
+        
+        try:
+            expiry_timestamp = float(expiry_str)
+            if current_time > expiry_timestamp:
+                expiry_date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expiry_timestamp))
+                logger.error(
+                    f"Authentication validation failed: Server secret expired on {expiry_date}"
+                )
+                return False, f"Server secret has expired. Please regenerate the server secret using the setup script."
+        except (ValueError, TypeError) as e:
+            logger.error(f"Authentication validation failed: Invalid expiry timestamp format: {e}")
+            return False, "Server secret expiry has an invalid format. Please rerun the setup script to regenerate the server secret."
 
         if not hmac.compare_digest(mcp_client_token, secret):
             logger.warning("Authentication validation failed: Secret mismatch")
