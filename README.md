@@ -68,13 +68,8 @@ The following values will be collected during the setup process:
 * **Secret Key:**
   This secret must be included by the **MCP Client** in the `Authorization` header of all tool requests.
   It acts as a security layer for tool access in remote server. You can set your own.
-</details>
-
-### 3. Secure Keyring Backend (Required for Token-Based Authentication)
 
 > **Important:** When using traditional token-based authentication, the setup script requires a secure, OS-native keyring backend to store sensitive credentials securely. Only secure backends are allowed for security reasons.
-
-The Commvault MCP Server uses a whitelist approach to ensure only secure keyring backends are used. The following backends are supported:
 
 #### Supported Secure Backends by Platform
 
@@ -83,8 +78,7 @@ The Commvault MCP Server uses a whitelist approach to ensure only secure keyring
 | **Windows** | `WinVaultKeyring`, `WinCredentialStore` | Uses Windows Credential Manager (Windows Vault) for secure storage |
 | **macOS** | `macOS Keyring` | Uses the native macOS Keychain for secure storage |
 | **Linux** | `SecretService` (GNOME), `KWallet` (KDE) | Uses Freedesktop Secret Service API (GNOME) or KWallet (KDE) for secure storage |
-
-> **Security Note:** The setup script will **immediately exit** if an insecure backend is detected. There is no option to override this security requirement. You must configure a secure, OS-native keyring backend before proceeding with the setup.
+</details>
 
 ## Setup
 
@@ -214,7 +208,18 @@ Refer to your AI client’s documentation for integration steps. For example, Cl
 
 ## Additional Configuration
 
-> **Note:** These are optional integrations that extend the MCP server's capabilities.
+> **Note:** These are optional configurations that extend the MCP server's capabilities.
+
+<details>
+<summary>Trusted Proxy Configuration</summary>
+<br/>
+
+When deployed behind a reverse proxy or load balancer, configure `TRUSTED_PROXY_IPS` environment variable with comma-separated proxy IP addresses to enable per-client rate limiting using the `X-Forwarded-For` header. For example:
+
+```bash
+export TRUSTED_PROXY_IPS="10.0.0.1,10.0.0.2,192.168.1.100"
+```
+</details>
 
 <details>
 <summary>DocuSign Backup Integration</summary>
