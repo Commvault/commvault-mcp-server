@@ -105,20 +105,21 @@ class AuthService:
             return False, "Server secrets missing. Please check server configuration."
 
         expiry_str = keyring.get_password(self.__service_name, "server_secret_expiry")
-        if expiry_str:
-            try:
-                expiry_timestamp = float(expiry_str)
-                if current_time > expiry_timestamp:
-                    expiry_date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expiry_timestamp))
-                    logger.error(
-                        f"Authentication validation failed: Server secret expired on {expiry_date}"
-                    )
-                    return False, f"Server secret has expired). Please regenerate the server secret using the setup script."
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Invalid expiry timestamp format: {e}. Proceeding with secret validation.")
-        else:
-            # allowing it for backward compatibility
-            logger.warning("Server secret has no expiry set. Consider regenerating it with the setup script to set an expiration date.")
+        if expiry_str is None:
+            logger.error("Authentication validation failed: Server secret expiry not set")
+            return False, "Server secret expiry is not set. Please rerun the setup script to configure the server secret with an expiration date."
+        
+        try:
+            expiry_timestamp = float(expiry_str)
+            if current_time > expiry_timestamp:
+                expiry_date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expiry_timestamp))
+                logger.error(
+                    f"Authentication validation failed: Server secret expired on {expiry_date}"
+                )
+                return False, f"Server secret has expired. Please regenerate the server secret using the setup script."
+        except (ValueError, TypeError) as e:
+            logger.error(f"Authentication validation failed: Invalid expiry timestamp format: {e}")
+            return False, "Server secret expiry has an invalid format. Please rerun the setup script to regenerate the server secret."
 
         if not hmac.compare_digest(mcp_client_token, secret):
             logger.warning("Authentication validation failed: Secret mismatch")
