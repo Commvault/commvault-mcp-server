@@ -3,6 +3,7 @@
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 [![License](https://img.shields.io/badge/License-Apache_2.0-red.svg)](https://opensource.org/licenses/Apache-2.0)
+[![MCPAmpel](https://img.shields.io/endpoint?url=https://mcpampel.com/badge/Commvault/commvault-mcp-server.json)](https://mcpampel.com/repo/Commvault/commvault-mcp-server)
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.org/) server for seamless integration with **Commvault** environments. This server enables AI agents to securely access and manage job details, commcell metrics, client and storage information, user permissions, plan configurations, and backup schedules.
 
