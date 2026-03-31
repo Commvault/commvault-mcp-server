@@ -70,7 +70,7 @@ def find_plan_id(data):
 
 async def test_get_plan_list(mcp_server):
     async with Client(mcp_server) as client:
-        result = await client.call_tool("get_plan_list", {})
+        result = await client.call_tool("get_plan_list", {"only_s3_vault_compatible": False})
         data = extract_response_data(result)
         assert_no_error_in_response(data, "get_plan_list")
         
@@ -83,7 +83,7 @@ async def test_get_plan_properties(mcp_server):
     plan_id = None
     
     async with Client(mcp_server) as client:
-        result = await client.call_tool("get_plan_list", {})
+        result = await client.call_tool("get_plan_list", {"only_s3_vault_compatible": False})
         data = extract_response_data(result)
         assert_no_error_in_response(data, "get_plan_list")
         

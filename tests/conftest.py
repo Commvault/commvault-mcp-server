@@ -7,7 +7,7 @@ from src.tools import ALL_TOOL_CATEGORIES
 # pytest fixture to mock the client token validation
 @pytest.fixture(scope="session", autouse=True)
 def mock_client_token():
-    with patch('src.auth.auth_service.AuthService.is_client_token_valid', return_value=True):
+    with patch('src.auth.auth_service.AuthService.is_client_token_valid', return_value=(True, None)):
         yield
 
 
