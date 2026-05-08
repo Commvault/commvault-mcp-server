@@ -14,11 +14,13 @@
 # limitations under the License.
 # --------------------------------------------------------------------------
 
-import requests
 import json
+import threading
+import time
 from typing import Dict, Any, Optional, Union
 from urllib.parse import urljoin
-import time
+
+import requests
 from dotenv import load_dotenv
 
 from src.auth.oauth_service import OAuthService
@@ -41,6 +43,10 @@ class CommvaultApiClient:
         self.use_oauth = use_oauth
         self.auth_service = OAuthService() if use_oauth else AuthService()
         self._use_bearer_auth = not use_oauth
+        # Serializes concurrent _refresh_access_token() calls so we never POST
+        # the same refresh_token to /V4/AccessToken/Renew twice in parallel
+        # (the second POST would race the first and get a 500 from CommServe).
+        self._refresh_lock = threading.Lock()
 
     def _get_headers(self, additional_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         auth_token, _ = self.auth_service.get_tokens()
@@ -73,42 +79,70 @@ class CommvaultApiClient:
         return urljoin(self.base_url, sanitized_endpoint)
 
     def _refresh_access_token(self) -> bool:
-        try:
-            refresh_url = self._build_url("V4/AccessToken/Renew")
-            auth_token, refresh_token = self.auth_service.get_tokens()
-            
-            payload = {
-                "accessToken": auth_token,
-                "refreshToken": refresh_token
-            }
-            
-            headers = {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'commvault-mcp-server/0.1.0'
-            }
-            
-            response = requests.post(
-                url=refresh_url,
-                headers=headers,
-                data=json.dumps(payload),
-                verify= self.ssl_verify
-            )
-            
-            response.raise_for_status()
-            
-            new_access_token = response.json().get("accessToken")
-            new_refresh_token = response.json().get("refreshToken")
-            if not new_access_token or not new_refresh_token:
-                raise Exception("No new tokens received")
-            self.auth_service.set_tokens(new_access_token, new_refresh_token)
+        """
+        Refresh the access/refresh token pair via /V4/AccessToken/Renew.
 
-            logger.info("Access token refreshed successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to refresh access token: {str(e)}")
-            return False
+        Thread-safety:
+            Refresh tokens are single-use on the CommServe. If two threads call
+            this concurrently with the same refresh token, the first wins and
+            the second gets HTTP 500 from /V4/AccessToken/Renew, which then
+            cascades into "Failed to refresh token" errors for every in-flight
+            request.
+
+            To prevent that, we serialize callers on `_refresh_lock` and
+            double-check the in-memory access token after acquiring the lock.
+            If another thread already rotated the token while we were waiting,
+            we skip the network call and reuse the freshly stored token.
+        """
+        # Snapshot the access token BEFORE acquiring the lock. This is our
+        # reference point for "did someone else rotate the token while I was
+        # blocked on the lock?".
+        snapshot_access_token, _ = self.auth_service.get_tokens()
+
+        with self._refresh_lock:
+            current_access_token, current_refresh_token = self.auth_service.get_tokens()
+
+            if current_access_token != snapshot_access_token:
+                logger.info(
+                    "Access token already refreshed by a concurrent request; "
+                    "reusing the rotated token instead of calling /V4/AccessToken/Renew again."
+                )
+                return True
+
+            try:
+                refresh_url = self._build_url("V4/AccessToken/Renew")
+                payload = {
+                    "accessToken": current_access_token,
+                    "refreshToken": current_refresh_token
+                }
+
+                headers = {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'commvault-mcp-server/0.1.0'
+                }
+
+                response = requests.post(
+                    url=refresh_url,
+                    headers=headers,
+                    data=json.dumps(payload),
+                    verify=self.ssl_verify
+                )
+
+                response.raise_for_status()
+
+                new_access_token = response.json().get("accessToken")
+                new_refresh_token = response.json().get("refreshToken")
+                if not new_access_token or not new_refresh_token:
+                    raise Exception("No new tokens received")
+                self.auth_service.set_tokens(new_access_token, new_refresh_token)
+
+                logger.info("Access token refreshed successfully")
+                return True
+
+            except Exception as e:
+                logger.error(f"Failed to refresh access token: {str(e)}")
+                return False
     
     def request(self, 
                 method: str, 

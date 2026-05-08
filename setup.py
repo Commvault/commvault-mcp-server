@@ -16,10 +16,22 @@
 
 import os
 import secrets
+import sys
 import time
 from datetime import datetime
 from getpass import getpass
 from urllib.parse import urljoin
+
+try:
+    import msvcrt  # Windows
+    _MASKED_INPUT_BACKEND = "msvcrt"
+    termios = None
+    tty = None
+except ImportError:
+    msvcrt = None
+    import termios  # POSIX
+    import tty
+    _MASKED_INPUT_BACKEND = "termios"
 
 import keyring
 import requests
@@ -53,6 +65,76 @@ def save_env(env_vars):
     with open(ENV_FILE, 'w') as f:
         for k, v in env_vars.items():
             f.write(f"{k}={v}\n")
+
+def getpass_masked(prompt: str = "Password: ") -> str:
+    """
+    Read a secret from the terminal, echoing '*' for each character typed.
+
+    This lets the user see how long their pasted token is (useful for spotting
+    truncated copy/paste) while still keeping the value visually masked. Falls
+    back to plain getpass() when stdin isn't a TTY (piped input, CI, etc.).
+
+    Supports Backspace to erase, Enter to submit, and Ctrl+C to cancel.
+    """
+    if not sys.stdin.isatty():
+        return getpass(prompt)
+
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+
+    chars: list[str] = []
+
+    if _MASKED_INPUT_BACKEND == "msvcrt":
+        while True:
+            ch = msvcrt.getwch()
+            if ch in ("\r", "\n"):
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                break
+            if ch == "\x03":  # Ctrl+C
+                sys.stdout.write("\n")
+                raise KeyboardInterrupt
+            if ch in ("\x00", "\xe0"):
+                # Function/arrow key prefix on Windows; consume and ignore the next code.
+                msvcrt.getwch()
+                continue
+            if ch in ("\x08", "\x7f"):  # Backspace
+                if chars:
+                    chars.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+                continue
+            chars.append(ch)
+            sys.stdout.write("*")
+            sys.stdout.flush()
+    else:
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            while True:
+                ch = sys.stdin.read(1)
+                if ch in ("\r", "\n"):
+                    sys.stdout.write("\r\n")
+                    sys.stdout.flush()
+                    break
+                if ch == "\x03":  # Ctrl+C
+                    sys.stdout.write("\r\n")
+                    raise KeyboardInterrupt
+                if ch in ("\x08", "\x7f"):  # Backspace / DEL
+                    if chars:
+                        chars.pop()
+                        sys.stdout.write("\b \b")
+                        sys.stdout.flush()
+                    continue
+                chars.append(ch)
+                sys.stdout.write("*")
+                sys.stdout.flush()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    return "".join(chars)
+
 
 def validate_https_url(url):
     if not url:
@@ -264,7 +346,7 @@ def prompt_update_env(env_vars):
                 current_val = env_vars.get(key, '')
                 if key == 'OAUTH_CLIENT_SECRET':
                     masked = '*' * len(current_val) if current_val else ''
-                    val = getpass(f"{description} [{masked}]: ", stream=None)
+                    val = getpass_masked(f"{description} [{masked}]: ")
                     if val:
                         console.print(f"[green]{description} updated.[/green]")
                     else:
@@ -334,7 +416,7 @@ def prompt_and_save_keyring(service_name, env_vars):
         while True:
             current_access = keyring.get_password(service_name, 'access_token')
             display_val = "<hidden>" if current_access else "none"
-            access_token = getpass(f"Enter access_token [{display_val}]: ").strip()
+            access_token = getpass_masked(f"Enter access_token [{display_val}]: ").strip()
             
             if not access_token:
                 # User wants to keep existing token
@@ -349,7 +431,7 @@ def prompt_and_save_keyring(service_name, env_vars):
             # Handle refresh_token
             current_refresh = keyring.get_password(service_name, 'refresh_token')
             display_val = "<hidden>" if current_refresh else "none"
-            refresh_token = getpass(f"Enter refresh_token [{display_val}]: ").strip()
+            refresh_token = getpass_masked(f"Enter refresh_token [{display_val}]: ").strip()
             
             if not refresh_token:
                 # User wants to keep existing refresh token
