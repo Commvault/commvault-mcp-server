@@ -139,7 +139,7 @@ For production deployments, it is recommended to use a reverse proxy with TLS/HT
 
 ## Running with Docker
 
-The Docker image runs the server in **OAuth mode only**. Non-OAuth (token-based) authentication requires an OS keyring that is unavailable inside a container.
+The Docker image runs the server in **OAuth mode only**.
 
 > **Prerequisites:** Docker installed, and a Commvault environment running **SP42 CU 27 or above** with OAuth configured.
 
