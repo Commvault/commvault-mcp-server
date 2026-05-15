@@ -12,6 +12,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src/ ./src/
 
+# OAuth is the only supported auth mode in a container (no OS keyring available)
+ENV USE_OAUTH=true
+
 EXPOSE 9090
 
 CMD ["uv", "run", "--no-sync", "-m", "src.server"]
