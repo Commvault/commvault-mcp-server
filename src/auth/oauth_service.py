@@ -14,7 +14,7 @@
 # limitations under the License.
 # --------------------------------------------------------------------------
 
-from fastmcp.server.dependencies import get_http_request
+from fastmcp.server.dependencies import get_access_token
 
 from src.logger import logger
 
@@ -22,9 +22,8 @@ from src.logger import logger
 class OAuthService:
 
     def get_tokens(self):
-        request = get_http_request()
-        auth_header = request.headers.get("Authorization")
-        if auth_header is None:
-            logger.error("Authentication validation failed")
+        access_token = get_access_token()
+        if access_token is None or not access_token.token:
+            logger.error("Authentication validation failed: no upstream access token in request context")
             raise Exception("Authentication validation failed. Please relogin and try again.")
-        return auth_header, None
+        return f"Bearer {access_token.token}", None

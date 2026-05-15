@@ -46,6 +46,7 @@ def create_mcp_server(config) -> FastMCP:
             upstream_client_id=config.oauth_client_id,
             upstream_client_secret=config.oauth_client_secret,
             base_url=config.oauth_base_url,
+            forward_resource=False,  # Azure AD v2.0 uses scopes instead of RFC 8707 resource param
             token_verifier=CustomJWTVerifier(
                 jwks_uri=config.oauth_jwks_uri,
                 required_scopes=config.oauth_required_scopes
