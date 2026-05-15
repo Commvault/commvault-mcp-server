@@ -137,6 +137,38 @@ For production deployments, it is recommended to use a reverse proxy with TLS/HT
 
 </details>
 
+## Running with Docker
+
+The Docker image runs the server in **OAuth mode only**.
+
+> **Prerequisites:** Docker installed, and a Commvault environment running **SP42 CU 27 or above** with OAuth configured.
+
+### 1. Generate a `.env` file
+
+Run the interactive setup script on your host machine. When prompted for the authentication method, select **OAuth**.
+
+```bash
+uv run setup.py
+```
+
+This produces a `.env` file with all required variables, including the OAuth endpoints and credentials.
+
+### 2. Build the image
+
+```bash
+docker build -t commvault-mcp-server .
+```
+
+### 3. Run the container
+
+Pass the generated `.env` file to the container at runtime:
+
+```bash
+docker run --rm -p 9090:9090 --env-file .env commvault-mcp-server
+```
+
+---
+
 ## Configuring Clients
 
 > **Note:** `npx` is required while using Token-Based Authentication. You can get it by installing [Node.js](https://nodejs.org/) which includes `npx` by default.
