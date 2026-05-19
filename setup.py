@@ -15,6 +15,7 @@
 # --------------------------------------------------------------------------
 
 import os
+import re
 import secrets
 import sys
 import time
@@ -39,11 +40,17 @@ from rich.console import Console
 from rich.prompt import Prompt
 from pyfiglet import Figlet
 
-from src.utils import get_env_var
+from src.utils import get_env_var, get_keyring_service_name
 
 console = Console()
 
 ENV_FILE = '.env'
+
+# Allowed characters for MCP_INSTANCE_ID. Conservative on purpose - this value
+# is embedded into the OS keyring service identifier, so we forbid whitespace,
+# path separators, and any character that could be awkward in a credential
+# manager UI or logs.
+INSTANCE_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,32}$")
 
 def print_title():
     f = Figlet(font='slant')
@@ -241,6 +248,51 @@ def validate_commvault_tokens(access_token, refresh_token, server_url, is_metall
         return False, "Connection timeout. Please check your server URL and network connectivity."
     except Exception as e:
         return False, f"Token validation error: {str(e)}"
+
+def prompt_instance_id(env_vars):
+    """
+    Prompt for an optional MCP_INSTANCE_ID used to namespace OS keyring entries.
+
+    The OS keyring is per-user, so running multiple MCP server installs on the
+    same host under the same OS user would otherwise collide on shared keys
+    (server_secret, server_secret_expiry, access_token, refresh_token). Each
+    rerun of setup.py would silently overwrite another instance's credentials.
+
+    Setting a unique instance ID per install (e.g. "prod", "dr", "site-a")
+    gives each install its own isolated keyring slots. Existing single-instance
+    installs can keep the default and their keyring entries are unchanged.
+    """
+    console.print("\n[bold underline]MCP Server Instance[/bold underline]")
+    console.print(
+        "Set a unique [bold]instance ID[/bold] only if you run multiple MCP server installs "
+        "on the same host under the same OS user. Each instance must use a different ID "
+        "so their secrets in the OS keyring do not overwrite each other."
+    )
+    console.print("Press Enter to keep the default (single-instance) configuration.\n")
+
+    current_val = env_vars.get('MCP_INSTANCE_ID', '')
+    default_display = current_val if current_val else 'default'
+    while True:
+        val = Prompt.ask(
+            "MCP_INSTANCE_ID (letters, digits, '.', '-', '_'; max 32 chars)",
+            default=default_display
+        )
+        val = (val or '').strip()
+        if not val or val.lower() == 'default':
+            env_vars.pop('MCP_INSTANCE_ID', None)
+            console.print("[green]Using default (single-instance) keyring namespace.[/green]")
+            return env_vars
+        if INSTANCE_ID_PATTERN.match(val):
+            env_vars['MCP_INSTANCE_ID'] = val
+            console.print(
+                f"[green]Instance ID set to '{val}'. Keyring entries will be namespaced as "
+                f"'commvault-mcp-server:{val}'.[/green]"
+            )
+            return env_vars
+        console.print(
+            "[red]Invalid instance ID. Use only letters, digits, '.', '-', '_' (max 32 chars).[/red]"
+        )
+
 
 def prompt_update_env(env_vars):
     keys = ['CC_SERVER_URL', 'MCP_TRANSPORT_MODE', 'MCP_HOST', 'MCP_PORT', 'MCP_PATH']
@@ -473,13 +525,26 @@ def main():
     print_title()
 
     env_vars = load_env()
+    env_vars = prompt_instance_id(env_vars)
     env_vars = prompt_update_env(env_vars)
     save_env(env_vars)
     console.print(f"\n[green]Updated {ENV_FILE} file.[/green]")
 
-    service_name = 'commvault-mcp-server'
+    # Sync the freshly chosen instance id into the live process environment so
+    # get_keyring_service_name() resolves to the correct namespaced service
+    # name when we write secrets below. dotenv loaded at import time will not
+    # pick up edits we just made to the .env file.
+    if 'MCP_INSTANCE_ID' in env_vars:
+        os.environ['MCP_INSTANCE_ID'] = env_vars['MCP_INSTANCE_ID']
+    else:
+        os.environ.pop('MCP_INSTANCE_ID', None)
+
+    service_name = get_keyring_service_name()
     prompt_and_save_keyring(service_name, env_vars)
 
+    console.print(
+        f"\n[dim]Credentials stored under keyring service '{service_name}'.[/dim]"
+    )
     console.print("\n[bold green]Setup complete! You can now run the MCP server (uv run -m src.server)[/bold green]")
 
 if __name__ == '__main__':
