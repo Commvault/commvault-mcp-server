@@ -72,6 +72,8 @@ The following values will be collected during the setup process:
 
 > **Important:** When using traditional token-based authentication, the setup script requires a secure, OS-native keyring backend to store sensitive credentials securely. Only secure backends are allowed for security reasons.
 
+> **Running multiple MCP servers on the same host?** The OS keyring is per-user, so by default every install writes to the same keyring slots and the most recent `setup.py` run overwrites the previous install's credentials. Set a unique `MCP_INSTANCE_ID` per install — see [Running Multiple Instances on the Same Host](#running-multiple-instances-on-the-same-host) under *Additional Configuration*.
+
 #### Supported Secure Backends by Platform
 
 | Platform | Supported Backends | Description |
@@ -270,6 +272,34 @@ Refer to your AI client’s documentation for integration steps. For example, Cl
 ## Additional Configuration
 
 > **Note:** These are optional configurations that extend the MCP server's capabilities.
+
+<details>
+<summary>Running Multiple Instances on the Same Host</summary>
+<br/>
+
+The OS keyring used to store the server secret and Commvault API tokens is **per-user**. By default every install of the MCP server on a given host writes to the same keyring entries under the service name `commvault-mcp-server`. If you run two or more MCP server installs under the same OS user, each rerun of `setup.py` silently overwrites the other instances' credentials, which typically surfaces as a `401 Invalid token` after a restart or reboot of the unaffected instance.
+
+To run multiple MCP server instances on the same host under the same OS user, set a unique `MCP_INSTANCE_ID` per install. The setup script prompts for it at the start; you can also set it directly in each install's `.env`:
+
+```bash
+# Instance A's .env
+MCP_INSTANCE_ID=prod
+
+# Instance B's .env
+MCP_INSTANCE_ID=dr
+```
+
+With an instance ID set, the keyring service name becomes `commvault-mcp-server:<MCP_INSTANCE_ID>`, isolating each install's `server_secret`, `server_secret_expiry`, `access_token`, and `refresh_token`.
+
+### Rules and notes
+
+- Allowed characters: letters, digits, `.`, `-`, `_` (max 32 chars).
+- Leaving `MCP_INSTANCE_ID` unset (or setting it to `default`) preserves the original behaviour and reuses the existing `commvault-mcp-server` keyring entries, so **existing single-instance installs do not need to do anything**.
+- Each install should still live in its own directory with its own `.env` so transport mode, port, `CC_SERVER_URL`, etc. don't collide. The instance ID only namespaces the keyring.
+- After changing `MCP_INSTANCE_ID` for an existing install, rerun `uv run setup.py` so the secret and tokens are written under the new namespaced service name.
+- Alternative isolation strategies that also work: run each instance under a dedicated OS user, or in its own host/VM/container.
+
+</details>
 
 <details>
 <summary>Trusted Proxy Configuration</summary>

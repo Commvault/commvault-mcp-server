@@ -23,11 +23,38 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Base keyring service identifier. Per-instance namespacing is appended via
+# the optional MCP_INSTANCE_ID environment variable (see get_keyring_service_name).
+KEYRING_SERVICE_BASE = "commvault-mcp-server"
+
 def get_env_var(var_name: str, default: Optional[str] = None) -> str:
     value = os.getenv(var_name, default)
     if value is None:
         raise ValueError(f"Please check if you have set all the environment variables {var_name}. You can run the setup script to set them.")
     return value
+
+
+def get_keyring_service_name() -> str:
+    """
+    Return the OS keyring service identifier, namespaced by MCP_INSTANCE_ID.
+
+    Multiple MCP server installs on the same host under the same OS user share
+    a single per-user OS keyring. Without namespacing, every install writes to
+    the same keys (server_secret, server_secret_expiry, access_token,
+    refresh_token) and the most recent ``setup.py`` run silently overwrites
+    the other installs' credentials.
+
+    Setting ``MCP_INSTANCE_ID`` to a unique value per install (e.g. ``"prod"``,
+    ``"dr"``, ``"site-a"``) gives each instance its own isolated keyring slots.
+
+    For backward compatibility with existing single-instance installs, an
+    unset, empty, or ``"default"`` value resolves to the unsuffixed base name
+    ``"commvault-mcp-server"``.
+    """
+    instance_id = (os.getenv("MCP_INSTANCE_ID") or "").strip()
+    if not instance_id or instance_id.lower() == "default":
+        return KEYRING_SERVICE_BASE
+    return f"{KEYRING_SERVICE_BASE}:{instance_id}"
 
 
 def sanitize_endpoint_path(endpoint: str) -> str:

@@ -25,6 +25,7 @@ from functools import lru_cache
 from fastmcp.server.dependencies import get_http_request
 
 from src.logger import logger
+from src.utils import get_keyring_service_name
 
 
 class AuthService:
@@ -33,10 +34,11 @@ class AuthService:
     _attempt_lock = threading.Lock()
     
     def __init__(self):
-        self.__service_name = "commvault-mcp-server"
+        self.__service_name = get_keyring_service_name()
         self.__access_token = None
         self.__refresh_token = None
 
+        logger.info(f"AuthService initialized using keyring service '{self.__service_name}'")
         self.fetch_and_set_tokens()
 
     def get_tokens(self):
