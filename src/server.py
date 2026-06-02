@@ -33,6 +33,8 @@ from fastmcp.server.auth.oauth_proxy import OAuthProxy
 from src.auth.jwt_verifier import CustomJWTVerifier
 from src.config import ConfigManager, SERVER_NAME, SERVER_INSTRUCTIONS
 from src.tools import ALL_TOOL_CATEGORIES
+from src.tool_annotations import annotations_for
+from src.resources import register_resources
 from src.logger import logger
 from src.utils import get_env_var
 
@@ -63,9 +65,13 @@ def register_tools(mcp_server: FastMCP, tool_categories: List[List[Callable]]) -
             # only enable docusign tools if ENABLE_DOCUSIGN_TOOLS is true
             if get_env_var("ENABLE_DOCUSIGN_TOOLS", "false").lower() == "false" and "docusign" in tool_fn.__module__:
                 continue
-            mcp_server.add_tool(Tool.from_function(tool_fn, output_schema=None))
+            mcp_server.add_tool(Tool.from_function(
+                tool_fn,
+                output_schema=None,
+                annotations=annotations_for(tool_fn),
+            ))
             total_tools += 1
-    
+
     logger.info(f"Successfully registered {total_tools} tools across {len(tool_categories)} categories")
 
 
@@ -79,6 +85,7 @@ def run_server() -> None:
         
         mcp = create_mcp_server(config)
         register_tools(mcp, ALL_TOOL_CATEGORIES)
+        register_resources(mcp)
         
         logger.info(f"Starting MCP server in {config.transport_mode} mode...")
         
