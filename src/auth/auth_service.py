@@ -32,8 +32,20 @@ class AuthService:
     # tracking for failed authentication attempts per client
     _failed_attempts = {}  # {client_ip: (attempt_count, next_allowed_time)}
     _attempt_lock = threading.Lock()
+    _instance = None
+    _instance_lock = threading.Lock()
+
+    def __new__(cls):
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
     
     def __init__(self):
+        if self._initialized:
+            return
+        self._initialized = True
         self.__service_name = get_keyring_service_name()
         self.__access_token = None
         self.__refresh_token = None
@@ -143,8 +155,9 @@ class AuthService:
 
         return direct_ip
     
-    def is_client_token_valid(self) -> (bool, str|None):
-        request = get_http_request()
+    def is_client_token_valid(self, request=None) -> (bool, str|None):
+        if request is None:
+            request = get_http_request()
         client_ip = self._get_client_ip(request)
         if client_ip is None:
             logger.error("Authentication validation failed: Unable to determine client IP address")

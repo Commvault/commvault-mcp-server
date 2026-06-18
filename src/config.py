@@ -73,6 +73,7 @@ class ConfigManager:
                 port = int(get_env_var("MCP_PORT"))
                 path = get_env_var("MCP_PATH")
                 use_oauth = get_env_var("USE_OAUTH", "false").lower() == "true"
+
                 if use_oauth:
                     config = ServerConfig(
                         transport_mode=transport_mode,
@@ -93,7 +94,7 @@ class ConfigManager:
                         transport_mode=transport_mode,
                         host=host,
                         port=port,
-                        path=path
+                        path=path,
                     )
             else:
                 config = ServerConfig(transport_mode=transport_mode)
