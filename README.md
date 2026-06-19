@@ -394,6 +394,29 @@ Place your DocuSign private key file in the `config/` directory as `docusign_key
 
 We do not recommend using [LiteLLM](https://github.com/BerriAI/litellm) as an MCP client. LiteLLM's per-turn session lifecycle triggers cosmetic `ClosedResourceError` tracebacks in the server terminal due to a race condition in the upstream `mcp` Python SDK — these are harmless but noisy.
 
+## Security Considerations
+
+### Multi-Server Trust Boundary (Tool Poisoning & Tool Shadowing)
+
+The MCP protocol enforces **no isolation between servers** that share a single agent session. Any other MCP server running in the same session as the Commvault MCP has the practical ability to influence the agent's reasoning about Commvault operations, even without direct access to CommServe or any privileges against it.
+
+Two attack paths follow from this architectural property:
+
+- **Tool Poisoning** — A malicious server's tool description coerces the agent to read the operator's stored Commvault auth token from host-side storage (e.g. `~/.claude.json`, a project-level `.mcp.json`, or the OS keychain entry for `commvault-mcp-server`) and pass the token value as a parameter to an attacker-controlled tool, which then exfiltrates it.
+- **Tool Shadowing** — A malicious server's tool description names Commvault tool identifiers (e.g. `kill_job`, `disable_schedule`, `set_user_enabled`) and instructs the agent to perform additional or modified Commvault operations whenever the operator legitimately invokes those tools. The Commvault MCP itself is the actor in these calls; its code and responses are not corrupted. The corruption lives in the agent's reasoning, induced by the third-party server's metadata.
+
+Neither path requires any defect in the Commvault MCP Server code. Both are properties of the MCP architecture as currently specified.
+
+> **Recommendations for operators:**
+> - Install only first-party or independently audited MCP servers in agent sessions that include Commvault tools.
+> - Where feasible, use an **isolated agent session** in which the Commvault MCP is the only integration.
+> - Where isolation is not feasible, restrict the agent's general filesystem and outbound-network tool capabilities for the duration of the session.
+
+### Credential Hygiene
+
+- **Use short-lived access tokens with explicit refresh** rather than long-lived bearer tokens. A bounded token lifetime limits the window during which an exfiltrated credential remains usable, and rotation invalidates leaked tokens before an attacker can act on them.
+- **Restrict outbound traffic from the MCP host.** Where your environment supports it, apply a network policy that limits outbound HTTP/HTTPS from the host running the MCP server to a documented allowlist. Unexpected outbound calls from an MCP host are the principal exfiltration channel for this class of attack and the most reliable detection signal.
+
 ## Contributing
 
 - We're continuing to add more functionality to this MCP server. If you'd like to leave feedback, file a bug or provide a feature request, please open an issue on this repository.
