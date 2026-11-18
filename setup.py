@@ -249,6 +249,94 @@ def validate_commvault_tokens(access_token, refresh_token, server_url, is_metall
     except Exception as e:
         return False, f"Token validation error: {str(e)}"
 
+
+DEFAULT_SERVER_SECRET_EXPIRY_DAYS = 30
+MAX_SERVER_SECRET_EXPIRY_DAYS = 180  # 6 months
+SECONDS_PER_DAY = 24 * 60 * 60
+
+
+def prompt_server_secret_expiry_days() -> int:
+    """Prompt for how long the MCP server secret remains valid."""
+    while True:
+        raw = Prompt.ask(
+            "Server secret validity in days (press Enter for 30, maximum 180)",
+            default="",
+        ).strip()
+        if not raw:
+            return DEFAULT_SERVER_SECRET_EXPIRY_DAYS
+        try:
+            days = int(raw)
+        except ValueError:
+            console.print("[red]Enter a whole number of days, or press Enter to use 30.[/red]")
+            continue
+        if days < 1:
+            console.print("[red]Expiry must be at least 1 day.[/red]")
+            continue
+        if days > MAX_SERVER_SECRET_EXPIRY_DAYS:
+            console.print(
+                f"[red]Expiry cannot exceed {MAX_SERVER_SECRET_EXPIRY_DAYS} days (6 months).[/red]"
+            )
+            continue
+        return days
+
+
+def _format_secret_expiry(expiry_str: str | None) -> str:
+    if not expiry_str:
+        return "not set"
+    try:
+        return datetime.fromtimestamp(float(expiry_str)).strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        return "unknown"
+
+
+def prompt_and_save_server_secret(service_name: str) -> None:
+    """Generate or retain the MCP server secret used by remote MCP clients."""
+    existing_secret = keyring.get_password(service_name, "server_secret")
+    existing_expiry_str = keyring.get_password(service_name, "server_secret_expiry")
+
+    console.print("[bold]MCP Server Secret[/bold]")
+    regenerate = True
+
+    if existing_secret:
+        console.print(
+            f"[dim]An existing server secret is stored "
+            f"(expires: {_format_secret_expiry(existing_expiry_str)}).[/dim]"
+        )
+        keep_existing = Prompt.ask(
+            "Keep the existing server secret?",
+            choices=["y", "n"],
+            default="y",
+        )
+        if keep_existing.lower() == "y":
+            regenerate = False
+
+    if not regenerate:
+        console.print("[yellow]Keeping existing server secret unchanged.[/yellow]")
+        console.print(
+            "[dim]Your MCP client Authorization header does not need to be updated.[/dim]\n"
+        )
+        return
+
+    expiry_days = prompt_server_secret_expiry_days()
+    server_secret = secrets.token_urlsafe(32)
+    expiry_timestamp = time.time() + (expiry_days * SECONDS_PER_DAY)
+    expiry_date = datetime.fromtimestamp(expiry_timestamp)
+
+    keyring.set_password(service_name, "server_secret", server_secret)
+    keyring.set_password(service_name, "server_secret_expiry", str(expiry_timestamp))
+
+    console.print("[green]Server secret generated and stored securely.[/green]")
+    console.print("\n[bold yellow]IMPORTANT: Copy this server secret for your LLM configuration:[/bold yellow]")
+    console.print(f"[bold cyan]{server_secret}[/bold cyan]")
+    console.print(
+        "[dim]This secret must be included in the Authorization header when connecting to the MCP server.[/dim]"
+    )
+    console.print(
+        f"[dim]This secret will expire on {expiry_date.strftime('%Y-%m-%d %H:%M:%S')} "
+        f"({expiry_days} day(s) from now). You will need to regenerate it after expiration.[/dim]\n"
+    )
+
+
 def prompt_instance_id(env_vars):
     """
     Prompt for an optional MCP_INSTANCE_ID used to namespace OS keyring entries.
@@ -440,24 +528,8 @@ def prompt_and_save_keyring(service_name, env_vars):
         console.print(f"\n[bold underline]Secure Tokens (stored in OS keyring)[/bold underline]")
         console.print("[bold yellow]Warning: Ensure you're entering sensitive tokens in a secure terminal environment.[/bold yellow]\n")
         
-        # Auto-generate server_secret
-        console.print("[bold]Server Secret (Auto-generated)[/bold]")
-        server_secret = secrets.token_urlsafe(32)  # 32 bytes = 43 characters URL-safe
-        
-        # Calculate expiry: 30 days from now
-        expiry_timestamp = time.time() + (30 * 24 * 60 * 60)  # 30 days in seconds
-        expiry_date = datetime.fromtimestamp(expiry_timestamp)
-        
-        # Store server_secret and its expiry
-        keyring.set_password(service_name, 'server_secret', server_secret)
-        keyring.set_password(service_name, 'server_secret_expiry', str(expiry_timestamp))
-        
-        console.print("[green]Server secret generated and stored securely.[/green]")
-        console.print("\n[bold yellow]IMPORTANT: Copy this server secret for your LLM configuration:[/bold yellow]")
-        console.print(f"[bold cyan]{server_secret}[/bold cyan]")
-        console.print("[dim]This secret must be included in the Authorization header when connecting to the MCP server.[/dim]")
-        console.print(f"[dim]This secret will expire on {expiry_date.strftime('%Y-%m-%d %H:%M:%S')}. You will need to regenerate it after expiration.[/dim]\n")
-        
+        prompt_and_save_server_secret(service_name)
+
         # Prompt for access_token and refresh_token with validation
         console.print("[bold]Commvault API Tokens[/bold]")
         console.print("Leave blank to keep the existing token.\n")
