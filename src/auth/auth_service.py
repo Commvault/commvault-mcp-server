@@ -197,7 +197,7 @@ class AuthService:
         
         try:
             expiry_timestamp = float(expiry_str)
-            if current_time > expiry_timestamp:
+            if expiry_timestamp != float("inf") and current_time > expiry_timestamp:
                 expiry_date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expiry_timestamp))
                 logger.error(
                     f"Authentication validation failed: Server secret expired on {expiry_date}"
