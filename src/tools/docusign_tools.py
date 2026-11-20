@@ -637,7 +637,7 @@ def schedule_docusign_backup(
         raise ToolError(f"Failed to schedule DocuSign backup: {str(e)}")
 
 def get_docusign_jobs(
-    jobLookupWindow: Annotated[int, Field(description="The time window in seconds to look up for jobs jobs. For example, 86400 for the last 24 hours.")]=86400,
+    jobLookupWindow: Annotated[int, Field(description="The time window in seconds to look up for jobs. For example, 86400 for the last 24 hours.")]=86400,
     limit: Annotated[int, Field(description="The maximum number of jobs to return. Default is 50.")] = 50,
     offset: Annotated[int, Field(description="The offset for pagination.")] = 0
 ) -> Dict[str, Any]:
