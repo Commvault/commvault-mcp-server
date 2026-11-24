@@ -417,6 +417,63 @@ Neither path requires any defect in the Commvault MCP Server code. Both are prop
 - **Use short-lived access tokens with explicit refresh** rather than long-lived bearer tokens. A bounded token lifetime limits the window during which an exfiltrated credential remains usable, and rotation invalidates leaked tokens before an attacker can act on them.
 - **Restrict outbound traffic from the MCP host.** Where your environment supports it, apply a network policy that limits outbound HTTP/HTTPS from the host running the MCP server to a documented allowlist. Unexpected outbound calls from an MCP host are the principal exfiltration channel for this class of attack and the most reliable detection signal.
 
+### Investigating Possible Tool Shadowing (Signals, Not Proof)
+
+Tool shadowing does not leave a dedicated “shadowing” marker in Commvault or MCP logs. Treat the following as **investigation signals** to correlate across sources. A signal alone does **not** prove shadowing; benign agents, automation, and legitimate operators can produce similar patterns.
+
+| Signal | Where to look | What to correlate |
+|--------|----------------|-------------------|
+| High-impact CommServe API activity | Command Center audit / API logs for the **Commvault access token** used by the MCP server (same user as token owner) | `kill_job`, `disable_schedule`, `enable_schedule`, `set_user_enabled`, `run_backup_for_subclient`, and related job-control calls that the operator does not recall approving in the agent session |
+| MCP server outbound API calls | `cv_mcp.log` in the **MCP server install directory** (rotating file, default name `cv_mcp.log`) | Log lines include HTTP method and Command Center API URL (`CommvaultApiClient`). Compare timestamps with CommServe audit entries and with the agent client’s session time window |
+| MCP protocol access | MCP host process / reverse-proxy access logs (if deployed) | `POST`/`GET` to your configured `MCP_PATH` (for example `/mcp`) while an agent session is active |
+| Unexpected multi-server context | Agent / IDE configuration | More than one MCP server enabled in the **same** agent session as Commvault (see [Multi-Server Trust Boundary](#multi-server-trust-boundary-tool-poisoning--tool-shadowing)) |
+
+**Suggested correlation workflow**
+
+1. Note the approximate **agent session** start/end time and which MCP tools the operator intended to run.
+2. On the MCP host, review `cv_mcp.log` for API calls in that window (especially job control, schedules, user enable/disable).
+3. In CommServe / Command Center, review audit or API activity for the **token identity** tied to the MCP install for the same window.
+4. Compare **volume and type** of calls: operations that match Commvault tool semantics but were not part of the stated operator intent are worth escalation—not automatic attribution to shadowing.
+5. If another MCP server was present in the session, review that server’s tool descriptions and session logs per your client vendor’s guidance.
+
+This guidance does not assert a product defect in Commvault MCP isolation or document a demonstrated exploit. It supports cautious operator response to the shared MCP agent trust boundary.
+
+### Credential and Configuration Storage (MCP Host vs CommServe)
+
+**MCP client configuration** (on the operator workstation or IDE) holds how the client reaches the MCP server. It is separate from **MCP server-side** storage used to call CommServe.
+
+| Layer | Purpose | Typical locations (verify for your OS and client) |
+|-------|---------|---------------------------------------------------|
+| **MCP client** | URL, transport, MCP `server_secret` or OAuth client settings for talking **to the MCP server** | Project file `.cursor/mcp.json` (Cursor), `~/.cursor/mcp.json` (global), Claude / other client config paths per vendor docs, `mcp-remote` args in JSON config (see [Configuring Clients](#configuring-clients)) |
+| **MCP server — non-secret config** | `CC_SERVER_URL`, transport, host, port, OAuth endpoints (no Commvault refresh token in file for traditional mode) | `.env` in the **MCP server install directory** (created by `uv run setup.py`) |
+| **MCP server — secrets (traditional token auth only)** | Commvault `access_token`, `refresh_token`, MCP `server_secret`, `server_secret_expiry` | OS keyring service **`commvault-mcp-server`** or **`commvault-mcp-server:<MCP_INSTANCE_ID>`** with entries of the same names (see [Running Multiple Instances on the Same Host](#running-multiple-instances-on-the-same-host)). On Windows: Credential Manager; on macOS: Keychain; on Linux: Secret Service / KWallet per backend chosen by `keyring` |
+| **MCP server — secrets (OAuth mode)** | OAuth client credentials and endpoints | `.env` only (`OAUTH_CLIENT_SECRET`, etc.); **no** Commvault refresh token in keyring for OAuth path in this project |
+| **CommServe** | Commvault tokens are issued and audited on the server; MCP does not store CommServe-side credentials beyond the API tokens in keyring (traditional) or forwarded OAuth bearer (OAuth mode) | Command Center token management and CommCell audit (product documentation) |
+
+**What to monitor for hygiene reviews**
+
+- MCP client configs that duplicate the **MCP server secret** or Commvault tokens in plaintext JSON.
+- Stale copies in `output.txt`, shell history, or committed files under the install directory.
+- Keyring namespace: unintended overwrites when multiple installs share one OS user without `MCP_INSTANCE_ID`.
+
+### Validated Reference Configurations
+
+The following are **reference baselines** exercised in development/testing of this repository. Your environment may differ; clients not listed here may work but are **not** documented as validated in this README.
+
+| Configuration | Validated in project testing | Notes |
+|---------------|------------------------------|-------|
+| Traditional token auth (`USE_OAUTH=false`), `streamable-http`, local MCP on `localhost` with `MCP_PATH=/mcp` | Yes | Windows host, secure Windows keyring backend, `.env` + keyring as above |
+| MCP client: **Cursor** native HTTP MCP (`url` + `headers.Authorization` bearer **MCP server secret**) | Yes | Structure differs from `mcp-remote` examples in [Configuring Clients](#configuring-clients); follow Cursor MCP docs |
+| MCP client: **`mcp-remote`** with `--header Authorization: …` | Documented | Referenced in README client sections; treat as supported pattern, not re-tested in every release here |
+| Transport **`stdio`** (local process, no HTTP `server_secret` on wire) | Documented | No HTTP middleware `server_secret` gate; client spawns server process directly |
+| Transport **`sse`** | Documented | Same token-auth middleware as `streamable-http` when OAuth is disabled; **not** separately validated in project test notes for every client |
+| **OAuth** MCP auth (`USE_OAUTH=true`) with Docker image | Documented | Container uses OAuth only (no keyring); client OAuth flows vary by IDE—**not** validated end-to-end for every client in this README |
+| **OAuth** on host install via `setup.py` | Documented | Requires CommServe OAuth (SP42 CU27+); operator client integration **not** listed as validated here |
+| **Metallic** (`IS_METALLIC=true`, gateway URL) | Documented | Separate API base URL path in code; validate per Metallic deployment guide |
+| Linux / macOS keyring backends | Documented | Allowed backends listed under [Prerequisites](#2-authentication--security-configuration); platform-specific UI paths for audit are operator responsibility |
+
+When opening a support or security review ticket, state **auth mode**, **transport**, **MCP client product**, and whether **`MCP_INSTANCE_ID`** is set so responders can map your layout to this table.
+
 ## Contributing
 
 - We're continuing to add more functionality to this MCP server. If you'd like to leave feedback, file a bug or provide a feature request, please open an issue on this repository.
