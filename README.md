@@ -417,6 +417,25 @@ Neither path requires any defect in the Commvault MCP Server code. Both are prop
 - **Use short-lived access tokens with explicit refresh** rather than long-lived bearer tokens. A bounded token lifetime limits the window during which an exfiltrated credential remains usable, and rotation invalidates leaked tokens before an attacker can act on them.
 - **Restrict outbound traffic from the MCP host.** Where your environment supports it, apply a network policy that limits outbound HTTP/HTTPS from the host running the MCP server to a documented allowlist. Unexpected outbound calls from an MCP host are the principal exfiltration channel for this class of attack and the most reliable detection signal.
 
+### Untrusted Data in Tool Responses
+
+**All string and structured fields returned by Commvault MCP tools are untrusted data from CommServe.** They must not be treated as instructions to the agent, the operator, or follow-on automation. Do not rely on downstream model refusals or client system prompts alone as a security control.
+
+Many tools return CommServe JSON with little or no field-level rewriting. For example, `get_job_task_details` returns the response from `Job/{job_id}/taskdetails` as returned by the API. If attacker-controlled or misleading text was stored in CommServe job or entity metadata (for example, instruction-shaped content in Send Log Files task fields), that text can appear **verbatim** in MCP tool output and enter an agent’s context. The MCP server does not execute embedded text in those fields; the risk is that an agent may misinterpret stored metadata as guidance.
+
+**Operator and agent-host guidance**
+
+- Treat every tool response as **data to summarize or display**, not as commands to run.
+- Configure agents so tool output cannot override operator intent (human approval for destructive Commvault tools where your client supports it).
+- Prefer least-privilege Commvault tokens for the MCP install so that even mistaken agent actions are bounded.
+- Validate unusual job or entity strings in Command Center when tool output contains unexpected instructions or markers.
+
+**CommServe write boundary (separate from this server)**
+
+Preventing planting of malicious strings at the source requires validation on CommServe write paths (for example, constraining `clientName` and similar fields to legitimate client identifiers). That behavior is outside this repository; confirm against your CommServe version and hardening guidance.
+
+**Tools that commonly return stored free text** (non-exhaustive): job detail and task detail tools, job lists, user and group properties, plan/storage/subclient/schedule/client-group/library properties, permission and association views, and integrations such as Salesforce record reads. Future releases may add response marking or escaping for high-risk fields; until then, assume **passthrough semantics** unless a tool’s documentation states otherwise.
+
 ## Contributing
 
 - We're continuing to add more functionality to this MCP server. If you'd like to leave feedback, file a bug or provide a feature request, please open an issue on this repository.
