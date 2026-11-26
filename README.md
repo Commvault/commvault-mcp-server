@@ -419,58 +419,66 @@ Neither path requires any defect in the Commvault MCP Server code. Both are prop
 
 ### Investigating Possible Tool Shadowing (Signals, Not Proof)
 
-Tool shadowing does not leave a dedicated “shadowing” marker in Commvault or MCP logs. Treat the following as **investigation signals** to correlate across sources. A signal alone does **not** prove shadowing; benign agents, automation, and legitimate operators can produce similar patterns.
+Tool shadowing does not leave a dedicated “shadowing” marker in Commvault or MCP logs. Treat the following as **investigation signals** to correlate across sources. A signal alone does **not** prove shadowing; benign agents, automation, scheduled jobs, and legitimate operators can produce similar patterns.
 
 | Signal | Where to look | What to correlate |
 |--------|----------------|-------------------|
-| High-impact CommServe API activity | Command Center audit / API logs for the **Commvault access token** used by the MCP server (same user as token owner) | `kill_job`, `disable_schedule`, `enable_schedule`, `set_user_enabled`, `run_backup_for_subclient`, and related job-control calls that the operator does not recall approving in the agent session |
-| MCP server outbound API calls | `cv_mcp.log` in the **MCP server install directory** (rotating file, default name `cv_mcp.log`) | Log lines include HTTP method and Command Center API URL (`CommvaultApiClient`). Compare timestamps with CommServe audit entries and with the agent client’s session time window |
-| MCP protocol access | MCP host process / reverse-proxy access logs (if deployed) | `POST`/`GET` to your configured `MCP_PATH` (for example `/mcp`) while an agent session is active |
+| High-impact CommServe API activity | Command Center audit, reporting, or API-related logs **as enabled in your CommCell** (see [Commvault product documentation](https://documentation.commvault.com)) | Activity for the **Commvault identity associated with the credential** the MCP server uses (`access_token` / OAuth bearer). That identity may differ from the human using the agent (shared or service tokens). Not every API call is guaranteed to appear in a single audit view |
+| MCP server outbound API calls | `cv_mcp.log` on the MCP host (see logging note below) | Timestamps, HTTP methods, Command Center URLs, and response status codes **when logged at INFO**. These lines do **not** record MCP tool names or agent intent |
+| MCP protocol access | MCP host process / reverse-proxy access logs (if deployed) | `POST`/`GET` against your configured `MCP_PATH` (for example `/mcp`) during an agent session. This shows **endpoint** activity, not which MCP tool was invoked |
 | Unexpected multi-server context | Agent / IDE configuration | More than one MCP server enabled in the **same** agent session as Commvault (see [Multi-Server Trust Boundary](#multi-server-trust-boundary-tool-poisoning--tool-shadowing)) |
+
+**MCP server logging (code behavior)**
+
+- By default the server writes a rotating file named `cv_mcp.log` in the **process working directory** (typically the MCP install directory if you start the server from there), 10 MB per file, five backups (`src/logger.py`).
+- Verbosity is controlled by `LOG_LEVEL` in `.env` (default `INFO`). At `INFO`, outbound CommServe requests log method, full URL, and HTTP status (`src/cv_api_client.py`); response bodies are `DEBUG` only.
+- Confirm log location and level on your deployment. Do not assume tool identifiers, MCP session IDs, or operator identity are logged.
 
 **Suggested correlation workflow**
 
-1. Note the approximate **agent session** start/end time and which MCP tools the operator intended to run.
-2. On the MCP host, review `cv_mcp.log` for API calls in that window (especially job control, schedules, user enable/disable).
-3. In CommServe / Command Center, review audit or API activity for the **token identity** tied to the MCP install for the same window.
-4. Compare **volume and type** of calls: operations that match Commvault tool semantics but were not part of the stated operator intent are worth escalation—not automatic attribution to shadowing.
-5. If another MCP server was present in the session, review that server’s tool descriptions and session logs per your client vendor’s guidance.
+1. **Preserve evidence** where policy allows: relevant logs, agent session transcripts, MCP server lists, and configuration snapshots **before** changing credentials or uninstalling servers.
+2. Note the approximate **agent session** window and which Commvault MCP tools the operator intended to run.
+3. **Normalize time** across CommServe, MCP server, MCP host, proxy, and agent logs (time zones, clock skew).
+4. On the MCP host, review `cv_mcp.log` for outbound API traffic in that window. Map URLs to high-impact operations only with CommServe-side context.
+5. In CommServe / Command Center, review activity for the **credential identity** used by the MCP install. Account for **other clients or automation** using the same token.
+6. Compare volume and type of operations: unexpected high-impact calls warrant escalation—they are **not** automatic proof of shadowing.
+7. If another MCP server shared the session, review that server’s tool metadata and client logs per the client vendor’s guidance.
 
 This guidance does not assert a product defect in Commvault MCP isolation or document a demonstrated exploit. It supports cautious operator response to the shared MCP agent trust boundary.
 
-### Credential and Configuration Storage (MCP Host vs CommServe)
+### MCP Client, MCP Server, and CommServe Credential Storage
 
-**MCP client configuration** (on the operator workstation or IDE) holds how the client reaches the MCP server. It is separate from **MCP server-side** storage used to call CommServe.
+Configuration and secrets sit in **three layers**: the MCP **client** (IDE/agent), the MCP **server** host, and **CommServe**.
 
-| Layer | Purpose | Typical locations (verify for your OS and client) |
-|-------|---------|---------------------------------------------------|
-| **MCP client** | URL, transport, MCP `server_secret` or OAuth client settings for talking **to the MCP server** | Project file `.cursor/mcp.json` (Cursor), `~/.cursor/mcp.json` (global), Claude / other client config paths per vendor docs, `mcp-remote` args in JSON config (see [Configuring Clients](#configuring-clients)) |
-| **MCP server — non-secret config** | `CC_SERVER_URL`, transport, host, port, OAuth endpoints (no Commvault refresh token in file for traditional mode) | `.env` in the **MCP server install directory** (created by `uv run setup.py`) |
-| **MCP server — secrets (traditional token auth only)** | Commvault `access_token`, `refresh_token`, MCP `server_secret`, `server_secret_expiry` | OS keyring service **`commvault-mcp-server`** or **`commvault-mcp-server:<MCP_INSTANCE_ID>`** with entries of the same names (see [Running Multiple Instances on the Same Host](#running-multiple-instances-on-the-same-host)). On Windows: Credential Manager; on macOS: Keychain; on Linux: Secret Service / KWallet per backend chosen by `keyring` |
-| **MCP server — secrets (OAuth mode)** | OAuth client credentials and endpoints | `.env` only (`OAUTH_CLIENT_SECRET`, etc.); **no** Commvault refresh token in keyring for OAuth path in this project |
-| **CommServe** | Commvault tokens are issued and audited on the server; MCP does not store CommServe-side credentials beyond the API tokens in keyring (traditional) or forwarded OAuth bearer (OAuth mode) | Command Center token management and CommCell audit (product documentation) |
+| Layer | Purpose | Typical storage (verify locally) |
+|-------|---------|--------------------------------|
+| **MCP client** | How the client reaches the MCP server | `.cursor/mcp.json` (Cursor), `~/.cursor/mcp.json`, other client configs per vendor docs, `mcp-remote` args ([Configuring Clients](#configuring-clients)) |
+| **MCP server — config** | Non-secret server settings | `.env` in the install directory. Traditional mode does **not** place Commvault refresh tokens in `.env` |
+| **MCP server — traditional auth secrets** | Commvault API tokens + MCP `server_secret` | OS keyring: `commvault-mcp-server` or `commvault-mcp-server:<MCP_INSTANCE_ID>`; entries `access_token`, `refresh_token`, `server_secret`, `server_secret_expiry` ([Running Multiple Instances on the Same Host](#running-multiple-instances-on-the-same-host)) |
+| **MCP server — OAuth auth** | OAuth proxy; per-request Commvault bearer | `OAUTH_*` in `.env` (including `OAUTH_CLIENT_SECRET`). Setup does **not** write Commvault tokens to the keyring in OAuth mode. Tool calls use the client’s OAuth bearer from the request context; the server does not persist that token in the keyring |
+| **CommServe** | Token issuance, permissions, audit (product-dependent) | Command Center / CommCell administration per Commvault documentation |
 
 **What to monitor for hygiene reviews**
 
-- MCP client configs that duplicate the **MCP server secret** or Commvault tokens in plaintext JSON.
-- Stale copies in `output.txt`, shell history, or committed files under the install directory.
-- Keyring namespace: unintended overwrites when multiple installs share one OS user without `MCP_INSTANCE_ID`.
+- Review MCP client files for **unnecessary** plaintext secrets (for example Commvault API tokens in client JSON). A configured **MCP `server_secret`** in client headers is **expected** for traditional remote HTTP/SSE auth.
+- Avoid committing client configs or setup captures that contain secrets.
+- Keyring namespace: multiple installs under one OS user without `MCP_INSTANCE_ID` can overwrite each other’s credentials.
 
-### Validated Reference Configurations
+### Documented Host and Client Configurations
 
-The following are **reference baselines** exercised in development/testing of this repository. Your environment may differ; clients not listed here may work but are **not** documented as validated in this README.
+The table below lists configurations **documented in this repository**. A documented example is not automatically an end-to-end validated deployment unless your organization records separate test evidence.
 
-| Configuration | Validated in project testing | Notes |
-|---------------|------------------------------|-------|
-| Traditional token auth (`USE_OAUTH=false`), `streamable-http`, local MCP on `localhost` with `MCP_PATH=/mcp` | Yes | Windows host, secure Windows keyring backend, `.env` + keyring as above |
-| MCP client: **Cursor** native HTTP MCP (`url` + `headers.Authorization` bearer **MCP server secret**) | Yes | Structure differs from `mcp-remote` examples in [Configuring Clients](#configuring-clients); follow Cursor MCP docs |
-| MCP client: **`mcp-remote`** with `--header Authorization: …` | Documented | Referenced in README client sections; treat as supported pattern, not re-tested in every release here |
-| Transport **`stdio`** (local process, no HTTP `server_secret` on wire) | Documented | No HTTP middleware `server_secret` gate; client spawns server process directly |
-| Transport **`sse`** | Documented | Same token-auth middleware as `streamable-http` when OAuth is disabled; **not** separately validated in project test notes for every client |
-| **OAuth** MCP auth (`USE_OAUTH=true`) with Docker image | Documented | Container uses OAuth only (no keyring); client OAuth flows vary by IDE—**not** validated end-to-end for every client in this README |
-| **OAuth** on host install via `setup.py` | Documented | Requires CommServe OAuth (SP42 CU27+); operator client integration **not** listed as validated here |
-| **Metallic** (`IS_METALLIC=true`, gateway URL) | Documented | Separate API base URL path in code; validate per Metallic deployment guide |
-| Linux / macOS keyring backends | Documented | Allowed backends listed under [Prerequisites](#2-authentication--security-configuration); platform-specific UI paths for audit are operator responsibility |
+| Configuration | Status | Credential / config storage (MCP host) | Notes |
+|---------------|--------|----------------------------------------|-------|
+| Traditional auth, `streamable-http` | Documented | `.env` + keyring | HTTP `server_secret` gate when `USE_OAUTH=false` (`TokenAuthMiddleware`) |
+| Traditional auth, `sse` | Documented | Same as above | Same middleware as `streamable-http` when OAuth is disabled |
+| Traditional auth, `stdio` | Documented | `.env` + keyring for Commvault API | **No** HTTP `server_secret` middleware; Commvault calls still use keyring tokens |
+| Remote client: `mcp-remote` + `Authorization` header | Documented | Client JSON; server secret from keyring | See [Configuring Clients](#configuring-clients) |
+| Remote client: Cursor-style `url` + `headers` | Documented | Client `.cursor/mcp.json`; server secret from keyring | Follow your IDE’s MCP documentation |
+| OAuth, host `setup.py` | Documented | `.env`; no keyring token setup | CommServe OAuth (SP42 CU27+); client flows vary |
+| OAuth, Docker image | Documented | `.env` at runtime | OAuth-only in container; no OS keyring |
+| Metallic (`IS_METALLIC=true`) | Documented | `.env` gateway URL; keyring if traditional auth | Validate per Metallic deployment guidance |
+| Linux / macOS keyring backends in Prerequisites | Documented | OS keyring UI | Allowed backends enforced in `setup.py` |
 
 When opening a support or security review ticket, state **auth mode**, **transport**, **MCP client product**, and whether **`MCP_INSTANCE_ID`** is set so responders can map your layout to this table.
 
