@@ -14,12 +14,12 @@
 # limitations under the License.
 # --------------------------------------------------------------------------
 
-from fastmcp.exceptions import ToolError
 from typing import Annotated
 from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
+from src.untrusted_data import mcp_tool_error
 from src.wrappers import filter_schedules_response
 
 
@@ -32,7 +32,7 @@ def get_schedules_list() -> dict:
         return filter_schedules_response(response)
     except Exception as e:
         logger.error(f"Error retrieving schedule list: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def get_schedule_properties(schedule_id: Annotated[str, Field(description="The schedule id to retrieve properties for.")]) -> dict:
     """
@@ -42,7 +42,7 @@ def get_schedule_properties(schedule_id: Annotated[str, Field(description="The s
         return commvault_api_client.get(f"Schedule/{schedule_id}")
     except Exception as e:
         logger.error(f"Error retrieving schedule properties: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def enable_schedule(schedule_id: Annotated[str, Field(description="The schedule id to enable.")]) -> dict:
     """
@@ -52,7 +52,7 @@ def enable_schedule(schedule_id: Annotated[str, Field(description="The schedule 
         return commvault_api_client.post(f"/Schedules/task/Action/Enable", data={"taskId": schedule_id})
     except Exception as e:
         logger.error(f"Error enabling schedule: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def disable_schedule(schedule_id: Annotated[str, Field(description="The schedule id to disable.")]) -> dict:
     """
@@ -62,7 +62,7 @@ def disable_schedule(schedule_id: Annotated[str, Field(description="The schedule
         return commvault_api_client.post(f"/Schedules/task/Action/Disable", data={"taskId": schedule_id})
     except Exception as e:
         logger.error(f"Error disabling schedule: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 SCHEDULE_MANAGEMENT_TOOLS = [
     get_schedules_list,

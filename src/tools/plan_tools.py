@@ -14,12 +14,12 @@
 # limitations under the License.
 # --------------------------------------------------------------------------
 
-from fastmcp.exceptions import ToolError
 from typing import Annotated
 from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
+from src.untrusted_data import mcp_tool_error
 
 
 def get_plan_list(only_s3_vault_compatible: Annotated[bool, Field(description="Whether to filter plans for S3 vault.")]) -> dict:
@@ -35,7 +35,7 @@ def get_plan_list(only_s3_vault_compatible: Annotated[bool, Field(description="W
         return response
     except Exception as e:
         logger.error(f"Error retrieving plan list: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def get_plan_properties(plan_id: Annotated[str, Field(description="The plan id to retrieve properties for.")]) -> dict:
     """
@@ -45,7 +45,7 @@ def get_plan_properties(plan_id: Annotated[str, Field(description="The plan id t
         return commvault_api_client.get(f"v4/plan/summary/{plan_id}")
     except Exception as e:
         logger.error(f"Error retrieving plan properties: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 PLAN_MANAGEMENT_TOOLS = [
     get_plan_list,

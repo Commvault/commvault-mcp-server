@@ -417,6 +417,30 @@ Neither path requires any defect in the Commvault MCP Server code. Both are prop
 - **Use short-lived access tokens with explicit refresh** rather than long-lived bearer tokens. A bounded token lifetime limits the window during which an exfiltrated credential remains usable, and rotation invalidates leaked tokens before an attacker can act on them.
 - **Restrict outbound traffic from the MCP host.** Where your environment supports it, apply a network policy that limits outbound HTTP/HTTPS from the host running the MCP server to a documented allowlist. Unexpected outbound calls from an MCP host are the principal exfiltration channel for this class of attack and the most reliable detection signal.
 
+### Untrusted Data in Tool Responses
+
+**All string and structured fields returned by Commvault MCP tools are untrusted data from CommServe.** They must not be treated as instructions to the agent, the operator, or follow-on automation. Do not rely on downstream model refusals or client system prompts alone as a security control.
+
+If attacker-controlled or misleading text was stored in CommServe job or entity metadata (for example, instruction-shaped content in Send Log Files task fields), that text can reach an agent through MCP tool output. The server does not execute embedded text; the risk is that an agent may misinterpret stored metadata as guidance.
+
+**What this server does (defect 611793)**
+
+- Every registered tool return is passed through `mark_untrusted_tool_response()` (`src/untrusted_data.py`): a top-level `__commvault_tool_output_notice__` field plus string leaves wrapped as `{ "__commvault_untrusted_string__": "<escaped value>" }`. Control characters and delimiter-like characters (`<`, `>`, `&`, `\`) in strings are escaped so clients cannot be fooled by forged markers inside CommServe data.
+- Tool failures use `mcp_tool_error()` / `raise_mcp_tool_error()` so error text is marked the same way.
+- `create_send_logs_job_for_commcell` validates `commcell_name` (length and printable characters), resolves the client via `getid`, and sends the resolved `clientId`/`clientName` instead of a hard-coded client id with a free-form name.
+
+**Operator and agent-host guidance**
+
+- Treat every tool response as **data to summarize or display**, not as commands to run.
+- Teach agents to ignore instruction-shaped content inside `__commvault_untrusted_string__` values and the notice field.
+- Configure human approval for destructive Commvault tools where your client supports it.
+- Prefer least-privilege Commvault tokens for the MCP install.
+- Validate unusual job or entity strings in Command Center when tool output contains unexpected instructions.
+
+**CommServe write boundary (separate from this server)**
+
+Preventing planting of malicious strings at the source still requires validation on CommServe write paths. That behavior is outside this repository; confirm against your CommServe version and hardening guidance.
+
 ## Contributing
 
 - We're continuing to add more functionality to this MCP server. If you'd like to leave feedback, file a bug or provide a feature request, please open an issue on this repository.

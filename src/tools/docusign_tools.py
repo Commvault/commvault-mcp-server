@@ -15,6 +15,8 @@
 # --------------------------------------------------------------------------
 
 from fastmcp.exceptions import ToolError
+
+from src.untrusted_data import raise_mcp_tool_error
 from typing import Annotated, Optional, Dict, Any
 from pydantic import Field
 import boto3
@@ -519,7 +521,7 @@ def trigger_docusign_backup() -> Dict[str, Any]:
         
     except Exception as e:
         logger.error(f"Error triggering DocuSign backup: {str(e)}")
-        raise ToolError(f"Failed to trigger DocuSign backup: {str(e)}")
+        raise_mcp_tool_error(f"Failed to trigger DocuSign backup: {str(e)}")
 
 def schedule_docusign_backup(
     schedule_type: Annotated[str, Field(description="Type of schedule to create. Options are 'daily' or 'weekly'. Default is 'daily'.")] = "daily",
@@ -634,7 +636,7 @@ def schedule_docusign_backup(
     
     except Exception as e:
         logger.error(f"Error scheduling DocuSign backup: {str(e)}")
-        raise ToolError(f"Failed to schedule DocuSign backup: {str(e)}")
+        raise_mcp_tool_error(f"Failed to schedule DocuSign backup: {str(e)}")
 
 def get_docusign_jobs(
     jobLookupWindow: Annotated[int, Field(description="The time window in seconds to look up for jobs jobs. For example, 86400 for the last 24 hours.")]=86400,
@@ -749,7 +751,7 @@ def get_docusign_jobs(
     
     except Exception as e:
         logger.error(f"Error retrieving DocuSign jobs: {str(e)}")
-        raise ToolError(f"Failed to retrieve DocuSign jobs: {str(e)}")
+        raise_mcp_tool_error(f"Failed to retrieve DocuSign jobs: {str(e)}")
 
 def list_backedup_docusign_envelopes(
     date: Annotated[str, Field(description="Date in YYYY-MM-DD format to list backups on specific date. Default is empty string which lists all backups.")] = ""
@@ -984,7 +986,7 @@ def list_backedup_docusign_envelopes(
     
     except Exception as e:
         logger.error(f"Error listing backed up envelopes: {str(e)}")
-        raise ToolError(f"Failed to list backed up DocuSign envelopes: {str(e)}")
+        raise_mcp_tool_error(f"Failed to list backed up DocuSign envelopes: {str(e)}")
 
 def recover_docusign_envelope(
     backup_date: Annotated[str, Field(description="Date in YYYY-MM-DD format when the envelope was backed up.")],
@@ -1032,7 +1034,7 @@ def recover_docusign_envelope(
         
     except Exception as e:
         logger.error(f"Error recovering DocuSign envelope: {str(e)}")
-        raise ToolError(f"Failed to recover DocuSign envelope: {str(e)}")
+        raise_mcp_tool_error(f"Failed to recover DocuSign envelope: {str(e)}")
     
 
 DOCUSIGN_TOOLS = [

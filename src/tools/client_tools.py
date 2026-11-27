@@ -14,12 +14,12 @@
 # limitations under the License.
 # --------------------------------------------------------------------------
 
-from fastmcp.exceptions import ToolError
 from typing import Annotated
 from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
+from src.untrusted_data import mcp_tool_error
 from src.wrappers import filter_client_list_response, filter_subclient_response, get_basic_client_group_details
 
 
@@ -32,7 +32,7 @@ def get_client_group_list() -> dict:
         return get_basic_client_group_details(response)
     except Exception as e:
         logger.error(f"Error retrieving client group list: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def get_client_list() -> dict:
     """
@@ -43,7 +43,7 @@ def get_client_list() -> dict:
         return filter_client_list_response(response)
     except Exception as e:
         logger.error(f"Error retrieving client list: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_client_group_properties(client_group_id: Annotated[str, Field(description="The client group id to retrieve properties for.")]) -> dict:
     """
@@ -53,7 +53,7 @@ def get_client_group_properties(client_group_id: Annotated[str, Field(descriptio
         return commvault_api_client.get(f"ClientGroup/{client_group_id}")
     except Exception as e:
         logger.error(f"Error retrieving client group properties: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_clientid_from_clientname(client_name: Annotated[str, Field(description="The client name to retrieve client id for.")]) -> dict:
     """
@@ -63,7 +63,7 @@ def get_clientid_from_clientname(client_name: Annotated[str, Field(description="
         return commvault_api_client.get("getid", params={"clientname": client_name})
     except Exception as e:
         logger.error(f"Error retrieving client id: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def get_subclient_list(client_identifier: Annotated[str, Field(description="The client name or ID to retrieve subclients for.")], identifier_type: Annotated[str, Field(description="Specify 'name' to use client name or 'id' to use client ID.")]) -> dict:
     """
@@ -85,7 +85,7 @@ def get_subclient_list(client_identifier: Annotated[str, Field(description="The 
         return filter_subclient_response(response)
     except Exception as e:
         logger.error(f"Error getting subclient list for client {identifier_type}: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_subclient_properties(subclient_id: Annotated[str, Field(description="The subclient id to retrieve properties for.")]) -> dict:
     """
@@ -95,7 +95,7 @@ def get_subclient_properties(subclient_id: Annotated[str, Field(description="The
         return commvault_api_client.get(f"subclient/{subclient_id}")
     except Exception as e:
         logger.error(f"Error getting subclient properties: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def run_backup_for_subclient(
     subclient_id: Annotated[str, Field(description="The subclient id to run backup for.")],
@@ -114,7 +114,7 @@ def run_backup_for_subclient(
         )
     except Exception as e:
         logger.error(f"Error running backup for subclient {subclient_id}: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
         
 CLIENT_MANAGEMENT_TOOLS = [
     get_client_group_list,

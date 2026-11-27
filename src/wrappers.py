@@ -15,6 +15,7 @@
 # --------------------------------------------------------------------------
 
 from src.logger import logger
+from src.untrusted_data import mark_untrusted_tool_response
 
 
 def get_basic_job_details(api_response):
@@ -35,10 +36,10 @@ def get_basic_job_details(api_response):
             "clientName": summary.get("destinationClient", {}).get("clientName"),
             "storagePolicyName": summary.get("storagePolicy", {}).get("storagePolicyName"),
         })
-    return {
+    return mark_untrusted_tool_response({
         "totalJobsAvailable": api_response.get("totalRecordsWithoutPaging", 0),
         "jobsInThisResponse": basic_details
-    }
+    })
 
 def get_basic_client_group_details(api_response):
     """
@@ -55,7 +56,7 @@ def get_basic_client_group_details(api_response):
             "clientCount": g.get("clientCount"),
             "companyName": entity.get("companyName")
         })
-    return {"totalClientGroups": len(filtered), "clientGroups": filtered}
+    return mark_untrusted_tool_response({"totalClientGroups": len(filtered), "clientGroups": filtered})
 
 def filter_subclient_response(api_response):
     """
@@ -71,10 +72,10 @@ def filter_subclient_response(api_response):
         entity = subclient.get("subClientEntity", {})
         filtered_entity = {k: entity.get(k) for k in relevant_keys if k in entity}
         filtered.append(filtered_entity)
-    return {
+    return mark_untrusted_tool_response({
         "subClientCount": api_response.get("filterQueryCount", 0),
         "subClients": filtered
-    }
+    })
 
 def filter_storage_pool_response(api_response):
     """
@@ -97,7 +98,7 @@ def filter_storage_pool_response(api_response):
             "storagePolicyName": policy.get("storagePolicyName"),
             "storagePolicyId": policy.get("storagePolicyId"),
         })
-    return {"storagePoolCount": len(filtered), "storagePools": filtered}
+    return mark_untrusted_tool_response({"storagePoolCount": len(filtered), "storagePools": filtered})
 
 def format_report_dataset_response(api_response):
     """
@@ -110,10 +111,10 @@ def format_report_dataset_response(api_response):
     formatted_records = []
     for record in records:
         formatted_records.append({column_names[i]: record[i] for i in range(len(column_names))})
-    return {
+    return mark_untrusted_tool_response({
         "totalRecordCount": api_response.get("totalRecordCount", 0),
         "records": formatted_records
-    }
+    })
 
 def transform_sla_data(api_response):
     """
@@ -148,7 +149,7 @@ def transform_sla_data(api_response):
             sla_percentage = 0
         
         result["SLA Percentage"] = round(sla_percentage, 2)
-        return result
+        return mark_untrusted_tool_response(result)
     except Exception as e:
         logger.error(f"Error transforming SLA data: {e}")
         raise Exception("Error transforming SLA data")
@@ -178,7 +179,7 @@ def filter_client_list_response(response):
             "clientId": client_entity.get("clientId"),
             "hostName": client_entity.get("hostName")
         })
-    return {"clients": filtered_clients}
+    return mark_untrusted_tool_response({"clients": filtered_clients})
 
 def filter_schedules_response(response):
     """
@@ -208,7 +209,7 @@ def filter_schedules_response(response):
             "description": description,
             "schedules": filtered_subtasks,
             })
-    return {"totalPolicies": len(schedules), "policies": schedules}
+    return mark_untrusted_tool_response({"totalPolicies": len(schedules), "policies": schedules})
 
 def filter_users_response(response):
     """
@@ -224,7 +225,7 @@ def filter_users_response(response):
             "lastLoginTime": user.get("lastLoggedIn"),
             "companyId": user.get("company", {}).get("id")
         })
-    return {"totalUsers": response.get("numberOfUsers", len(users)), "users": users}
+    return mark_untrusted_tool_response({"totalUsers": response.get("numberOfUsers", len(users)), "users": users})
 
 def filter_user_groups_response(response):
     """
@@ -237,7 +238,7 @@ def filter_user_groups_response(response):
             "userGroupName": group.get("name"),
             "companyId": group.get("company", {}).get("id")
         })
-    return {"totalUserGroups": response.get("numberOfUserGroups", len(user_groups)), "userGroups": user_groups}
+    return mark_untrusted_tool_response({"totalUserGroups": response.get("numberOfUserGroups", len(user_groups)), "userGroups": user_groups})
 
 def filter_security_associations_response(api_response):
     """
@@ -268,4 +269,4 @@ def filter_security_associations_response(api_response):
                 for perm in properties["categoryPermission"].get("categoriesPermissionList", [])
             ]
         filtered.append(filtered_assoc)
-    return {"associations": filtered}
+    return mark_untrusted_tool_response({"associations": filtered})

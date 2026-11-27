@@ -14,12 +14,12 @@
 # limitations under the License.
 # --------------------------------------------------------------------------
 
-from fastmcp.exceptions import ToolError
 from typing import Annotated
 from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
+from src.untrusted_data import mark_untrusted_tool_response, mcp_tool_error
 from src.wrappers import get_basic_job_details
 
 
@@ -35,10 +35,10 @@ def get_job_detail(job_id: Annotated[int, Field(description="The ID of the job t
         jobs_list = commvault_api_client.get(endpoint).get("jobs", [])
         if not jobs_list:
             raise Exception(f"No job found with ID: {job_id}")
-        return jobs_list[0]
+        return mark_untrusted_tool_response(jobs_list[0])
     except Exception as e:
         logger.error(f"Error getting job detail: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 
 def suspend_job(
@@ -60,7 +60,7 @@ def suspend_job(
         return commvault_api_client.post(endpoint, data=payload)
     except Exception as e:
         logger.error(f"Error suspending job: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 
 def resume_job(job_id: Annotated[int, Field(description="The ID of the job to resume.")]) -> dict:
@@ -72,7 +72,7 @@ def resume_job(job_id: Annotated[int, Field(description="The ID of the job to re
         return commvault_api_client.post(endpoint, data={})
     except Exception as e:
         logger.error(f"Error resuming job: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 
 def resubmit_job(job_id: Annotated[int, Field(description="The ID of the job to resubmit.")]) -> dict:
@@ -84,7 +84,7 @@ def resubmit_job(job_id: Annotated[int, Field(description="The ID of the job to 
         return commvault_api_client.post(endpoint, data={})
     except Exception as e:
         logger.error(f"Error resubmitting job: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 
 def kill_job(job_id: Annotated[int, Field(description="The ID of the job to kill.")],) -> dict:
@@ -96,7 +96,7 @@ def kill_job(job_id: Annotated[int, Field(description="The ID of the job to kill
         return commvault_api_client.post(endpoint, data={})
     except Exception as e:
         logger.error(f"Error killing job: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 
 def get_jobs_list(
@@ -125,7 +125,7 @@ def get_jobs_list(
         return get_basic_job_details(response)
     except Exception as e:
         logger.error(f"Error retrieving jobs by job type: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def get_failed_jobs(
     jobLookupWindow: Annotated[int, Field(description="The time window in seconds to look up for jobs. For example, 86400 for the last 24 hours.")]=86400,
@@ -151,7 +151,7 @@ def get_failed_jobs(
         return get_basic_job_details(response)
     except Exception as e:
         logger.error(f"Error retrieving failed jobs: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 
 def get_job_task_details(job_id: Annotated[int, Field(description="The job id to retrieve task details for.")]) -> dict:
@@ -162,7 +162,7 @@ def get_job_task_details(job_id: Annotated[int, Field(description="The job id to
         return commvault_api_client.get(f"Job/{job_id}/taskdetails")
     except Exception as e:
         logger.error(f"Error retrieving job task details: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 
 def get_retention_info_of_a_job(job_id: Annotated[int, Field(description="The job id to retrieve retention info for.")]) -> dict:
@@ -173,7 +173,7 @@ def get_retention_info_of_a_job(job_id: Annotated[int, Field(description="The jo
         return commvault_api_client.get(f"Job/{job_id}/advanceddetails", params={"infoType": 1})
     except Exception as e:
         logger.error(f"Error retrieving retention info: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def create_send_logs_job_for_a_job(emailid: Annotated[str, Field(description="The email id to send logs to.")], job_id: Annotated[int, Field(description="The job id for which to send logs.")]) -> dict:
     """
@@ -248,7 +248,7 @@ def create_send_logs_job_for_a_job(emailid: Annotated[str, Field(description="Th
         return commvault_api_client.post("createtask", data=data)
     except Exception as e:
         logger.error(f"Error creating send logs job for job: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 
 JOB_MANAGEMENT_TOOLS = [
