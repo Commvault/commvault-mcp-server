@@ -423,7 +423,7 @@ Tool shadowing does not leave a dedicated “shadowing” marker in Commvault or
 
 | Signal | Where to look | What to correlate |
 |--------|----------------|-------------------|
-| High-impact CommServe API activity | Command Center audit, reporting, or API-related logs **as enabled in your CommCell** (see [Commvault product documentation](https://documentation.commvault.com)) | Activity for the **Commvault identity associated with the credential** the MCP server uses (`access_token` / OAuth bearer). That identity may differ from the human using the agent (shared or service tokens). Not every API call is guaranteed to appear in a single audit view |
+| High-impact CommServe API activity | Command Center audit, reporting, or API-related logs **as enabled in your CommCell** | Activity for the **Commvault identity associated with the credential** the MCP server uses (`access_token` / OAuth bearer). That identity may differ from the human using the agent (shared or service tokens). Not every API call is guaranteed to appear in a single audit view |
 | MCP server outbound API calls | `cv_mcp.log` on the MCP host (see logging note below) | Timestamps, HTTP methods, Command Center URLs, and response status codes **when logged at INFO**. These lines do **not** record MCP tool names or agent intent |
 | MCP protocol access | MCP host process / reverse-proxy access logs (if deployed) | `POST`/`GET` against your configured `MCP_PATH` (for example `/mcp`) during an agent session. This shows **endpoint** activity, not which MCP tool was invoked |
 | Unexpected multi-server context | Agent / IDE configuration | More than one MCP server enabled in the **same** agent session as Commvault (see [Multi-Server Trust Boundary](#multi-server-trust-boundary-tool-poisoning--tool-shadowing)) |
@@ -452,7 +452,7 @@ Configuration and secrets sit in **three layers**: the MCP **client** (IDE/agent
 
 | Layer | Purpose | Typical storage (verify locally) |
 |-------|---------|--------------------------------|
-| **MCP client** | How the client reaches the MCP server | `.cursor/mcp.json` (Cursor), `~/.cursor/mcp.json`, other client configs per vendor docs, `mcp-remote` args ([Configuring Clients](#configuring-clients)) |
+| **MCP client** (IDE or agent app that connects **to** this MCP server—not other Commvault MCP server installs) | Server URL, transport, and client-side auth (for example MCP `server_secret` header or OAuth) | **Examples:** Cursor project or global MCP config (`.cursor/mcp.json`, `~/.cursor/mcp.json`); Claude or other agents per that product’s docs; `npx mcp-remote` JSON patterns in [Configuring Clients](#configuring-clients) |
 | **MCP server — config** | Non-secret server settings | `.env` in the install directory. Traditional mode does **not** place Commvault refresh tokens in `.env` |
 | **MCP server — traditional auth secrets** | Commvault API tokens + MCP `server_secret` | OS keyring: `commvault-mcp-server` or `commvault-mcp-server:<MCP_INSTANCE_ID>`; entries `access_token`, `refresh_token`, `server_secret`, `server_secret_expiry` ([Running Multiple Instances on the Same Host](#running-multiple-instances-on-the-same-host)) |
 | **MCP server — OAuth auth** | OAuth proxy; per-request Commvault bearer | `OAUTH_*` in `.env` (including `OAUTH_CLIENT_SECRET`). Setup does **not** write Commvault tokens to the keyring in OAuth mode. Tool calls use the client’s OAuth bearer from the request context; the server does not persist that token in the keyring |
