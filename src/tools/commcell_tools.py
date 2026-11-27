@@ -15,10 +15,10 @@
 # --------------------------------------------------------------------------
 
 from typing import Annotated
-from fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
+from src.untrusted_data import mcp_tool_error, validate_client_name_for_write
 from src.logger import logger
 from src.wrappers import compute_security_score, format_report_dataset_response, transform_sla_data
 
@@ -35,7 +35,7 @@ def get_sla_status() -> dict:
         return sla_status
     except Exception as e:
         logger.error(f"Error retrieving SLA status: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def get_security_posture():
     """
@@ -48,7 +48,7 @@ def get_security_posture():
         return security_posture
     except Exception as e:
         logger.error(f"Error retrieving security posture: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_security_score():
     """
@@ -65,7 +65,7 @@ def get_security_score():
         return response
     except Exception as e:
         logger.error(f"Error retrieving security score: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_storage_space_utilization():
     """
@@ -78,7 +78,7 @@ def get_storage_space_utilization():
         return format_report_dataset_response(api_response)
     except Exception as e:
         logger.error(f"Error retrieving storage space utilization: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_commcell_details() -> dict:
     """
@@ -89,7 +89,7 @@ def get_commcell_details() -> dict:
         return format_report_dataset_response(api_response)
     except Exception as e:
         logger.error(f"Error retrieving commcell details: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_entity_counts() -> dict:
     """
@@ -100,7 +100,7 @@ def get_entity_counts() -> dict:
         return format_report_dataset_response(api_response)
     except Exception as e:
         logger.error(f"Error retrieving entity counts: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def create_send_logs_job_for_commcell(emailid: Annotated[str, Field(description="The email id to send logs to.")], commcell_name: Annotated[str, Field(description="The commcell name for which to send logs.")]) -> dict:
     """
@@ -108,6 +108,15 @@ def create_send_logs_job_for_commcell(emailid: Annotated[str, Field(description=
     If successful, returns the job ID of the created send logs job.
     """
     try:
+        is_valid, validation_error = validate_client_name_for_write(commcell_name)
+        if not is_valid:
+            return mcp_tool_error(ValueError(validation_error or "Invalid client name."))
+
+        client_lookup = commvault_api_client.get("getid", params={"clientname": commcell_name})
+        client_id = client_lookup.get("clientId")
+        if client_id is None:
+            return mcp_tool_error(ValueError(f"No Commvault client found for name: {commcell_name}"))
+
         data = {
             "taskInfo": {
                 "task": {
@@ -157,7 +166,7 @@ def create_send_logs_job_for_commcell(emailid: Annotated[str, Field(description=
                                     "collectUserAppLogs": False,
                                     "impersonateUser": {"useImpersonation": False},
                                     "clients": [
-                                        {"clientId": 2, "clientName": commcell_name}
+                                        {"clientId": client_id, "clientName": commcell_name}
                                     ],
                                     "recipientCc": {
                                         "emailids": [emailid],
@@ -175,7 +184,7 @@ def create_send_logs_job_for_commcell(emailid: Annotated[str, Field(description=
         return commvault_api_client.post("createtask", data=data)
     except Exception as e:
         logger.error(f"Error creating send logs job for commcell: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 COMMCELL_MANAGEMENT_TOOLS = [
     get_sla_status,

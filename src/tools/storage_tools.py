@@ -14,12 +14,12 @@
 # limitations under the License.
 # --------------------------------------------------------------------------
 
-from fastmcp.exceptions import ToolError
 from typing import Annotated
 from pydantic import Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
+from src.untrusted_data import mcp_tool_error
 from src.wrappers import filter_storage_pool_response
 
 
@@ -31,7 +31,7 @@ def get_storage_policy_list() -> dict:
         return commvault_api_client.get("V2/StoragePolicy")
     except Exception as e:
         logger.error(f"Error getting storage policy list: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_storage_policy_properties(storage_policy_id: Annotated[str, Field(description="The storage policy id to retrieve properties for.")]) -> dict:
     """
@@ -41,7 +41,7 @@ def get_storage_policy_properties(storage_policy_id: Annotated[str, Field(descri
         return commvault_api_client.get(f"V2/StoragePolicy/{storage_policy_id}?propertyLevel=10")
     except Exception as e:
         logger.error(f"Error getting storage policy properties: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_storage_policy_copy_details(storage_policy_id: Annotated[str, Field(description="The storage policy id to retrieve copy details for.")], copy_id: Annotated[str, Field(description="The copy id to retrieve details for.")]) -> dict:
     """
@@ -51,7 +51,7 @@ def get_storage_policy_copy_details(storage_policy_id: Annotated[str, Field(desc
         return commvault_api_client.get(f"V2/StoragePolicy/{storage_policy_id}/Copy/{copy_id}")
     except Exception as e:
         logger.error(f"Error getting storage policy copy details: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_storage_policy_copy_size(storage_policy_id: Annotated[str, Field(description="The storage policy id to retrieve copy size for.")], copy_id: Annotated[str, Field(description="The copy id to retrieve size for.")]) -> dict:
     """
@@ -61,7 +61,7 @@ def get_storage_policy_copy_size(storage_policy_id: Annotated[str, Field(descrip
         return commvault_api_client.get(f"V2/StoragePolicy/{storage_policy_id}/Copy/{copy_id}/Size")
     except Exception as e:
         logger.error(f"Error getting storage policy copy size: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_library_list() -> dict:
     """
@@ -71,7 +71,7 @@ def get_library_list() -> dict:
         return commvault_api_client.get("Library?propertyLevel=10")
     except Exception as e:
         logger.error(f"Error retrieving library list: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_library_properties(library_id: Annotated[str, Field(description="The library id to retrieve properties for.")]) -> dict:
     """
@@ -81,7 +81,7 @@ def get_library_properties(library_id: Annotated[str, Field(description="The lib
         return commvault_api_client.get(f"Library/{library_id}")
     except Exception as e:
         logger.error(f"Error retrieving library properties: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
 
 def get_storage_pool_list() -> dict:
     """
@@ -92,7 +92,7 @@ def get_storage_pool_list() -> dict:
         return filter_storage_pool_response(response)
     except Exception as e:
         logger.error(f"Error retrieving storage pool list: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 def get_mediaagent_list() -> dict:
     """
@@ -102,7 +102,7 @@ def get_mediaagent_list() -> dict:
         return commvault_api_client.get("MediaAgent")
     except Exception as e:
         logger.error(f"Error retrieving media agent list: {e}")
-        return ToolError({"error": str(e)})
+        return mcp_tool_error(e)
     
 STORAGE_MANAGEMENT_TOOLS = [
     get_storage_policy_list,

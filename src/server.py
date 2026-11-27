@@ -21,6 +21,7 @@ This module sets up and runs the Commvault MCP server with all available tools
 for interacting with Commvault product.
 """
 
+import functools
 import ipaddress
 import os
 import sys
@@ -28,6 +29,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import List, Callable
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from fastmcp.tools import Tool
 from fastmcp.server.auth.oauth_proxy import OAuthProxy
 from starlette.middleware import Middleware
@@ -39,6 +41,7 @@ from src.auth.jwt_verifier import CustomJWTVerifier
 from src.config import ConfigManager, SERVER_NAME, SERVER_INSTRUCTIONS
 from src.tools import ALL_TOOL_CATEGORIES
 from src.logger import logger
+from src.untrusted_data import mark_untrusted_tool_response
 from src.utils import get_env_var
 
 
@@ -98,6 +101,19 @@ def create_mcp_server(config) -> FastMCP:
     return FastMCP(name=SERVER_NAME, instructions=SERVER_INSTRUCTIONS, auth=auth)
 
 
+def _wrap_tool_output_with_trust_boundary(tool_fn: Callable) -> Callable:
+    """Mark CommServe-sourced strings in every successful tool return (defect 611793)."""
+
+    @functools.wraps(tool_fn)
+    def wrapped(*args, **kwargs):
+        result = tool_fn(*args, **kwargs)
+        if isinstance(result, ToolError):
+            return result
+        return mark_untrusted_tool_response(result)
+
+    return wrapped
+
+
 def register_tools(mcp_server: FastMCP, tool_categories: List[List[Callable]]) -> None:
     logger.info("Registering tools with MCP server...")
     
@@ -107,7 +123,8 @@ def register_tools(mcp_server: FastMCP, tool_categories: List[List[Callable]]) -
             # only enable docusign tools if ENABLE_DOCUSIGN_TOOLS is true
             if get_env_var("ENABLE_DOCUSIGN_TOOLS", "false").lower() == "false" and "docusign" in tool_fn.__module__:
                 continue
-            mcp_server.add_tool(Tool.from_function(tool_fn, output_schema=None))
+            registered_fn = _wrap_tool_output_with_trust_boundary(tool_fn)
+            mcp_server.add_tool(Tool.from_function(registered_fn, output_schema=None))
             total_tools += 1
     
     logger.info(f"Successfully registered {total_tools} tools across {len(tool_categories)} categories")

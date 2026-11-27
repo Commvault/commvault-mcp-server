@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from src.cv_api_client import commvault_api_client
 from src.logger import logger
+from src.untrusted_data import raise_mcp_tool_error
 
 
 # ── Filter models ────────────────────────────────────────────────────────────
@@ -190,13 +191,13 @@ def get_salesforce_client(
 
         if not orgs:
             logger.warning("No Salesforce organisations returned by the API.")
-            raise ToolError("No Salesforce organisations found in Commvault.")
+            raise_mcp_tool_error("No Salesforce organisations found in Commvault.")
 
         org = _find_org_in_list(orgs, salesforce_org_id)
 
         if org is None:
             available_ids = [_get_org_id_from_org(o) for o in orgs if _get_org_id_from_org(o)]
-            raise ToolError(
+            raise_mcp_tool_error(
                 f"No Commvault organisation found matching Salesforce org ID "
                 f"'{salesforce_org_id}'. "
                 f"Checked {len(orgs)} org(s). "
@@ -224,7 +225,7 @@ def get_salesforce_client(
         raise
     except Exception as e:
         logger.error("Error resolving Salesforce org ID '%s': %s", salesforce_org_id, e)
-        raise ToolError(str(e))
+        raise_mcp_tool_error(e)
 
 
 # ── Tool 2: Fetch backed-up Salesforce records ────────────────────────────────
@@ -346,7 +347,7 @@ def get_salesforce_records(
         raise
     except Exception as e:
         logger.error("Unexpected error resolving org ID '%s': %s", salesforce_org_id, e)
-        raise ToolError(f"Failed to resolve organisation ID: {e}")
+        raise_mcp_tool_error(f"Failed to resolve organisation ID: {e}")
 
     # ── Step 2: fetch records from the latest backup snapshot ─────────────────
     try:
@@ -378,7 +379,7 @@ def get_salesforce_records(
         if data.get("errorCode", 0) != 0:
             err_msg = data.get("errorMessage") or data.get("errorString") or str(data)
             logger.error("Dataset API returned an error for object='%s': %s", object_name, err_msg)
-            raise ToolError({"error": err_msg, "raw_response": data})
+            raise_mcp_tool_error({"error": err_msg, "raw_response": data})
 
         columns: list[dict] = data.get("columns", [])
         raw_records: list   = data.get("records", [])
@@ -412,7 +413,7 @@ def get_salesforce_records(
             "Error fetching Salesforce records for object='%s', backupsetId=%s: %s",
             object_name, backupset_id, e,
         )
-        raise ToolError({"error": str(e)})
+        raise_mcp_tool_error(e)
 
 
 # ── Tool registry ─────────────────────────────────────────────────────────────
